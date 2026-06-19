@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SmartRecipe</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f7f5;
+      --surface: #ffffff;
+      --surface-2: #eef4f0;
+      --ink: #18231d;
+      --muted: #617067;
+      --line: #d8e2dc;
+      --accent: #16745a;
+      --accent-2: #d8662f;
+      --accent-soft: #e2f3ec;
+      --danger: #a33a2e;
+      --shadow: 0 14px 35px rgba(35, 54, 45, 0.08);
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    button, input, textarea, select {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.65;
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      background: #fbfdfb;
+      border-right: 1px solid var(--line);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .brand-main {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: 0;
+      flex: 0 0 auto;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .status-pill {
+      min-width: 74px;
+      text-align: center;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 12px;
+      color: #0f5f49;
+      background: var(--accent-soft);
+      border: 1px solid #c5e8da;
+    }
+
+    .status-pill.offline {
+      color: var(--danger);
+      background: #fae8e4;
+      border-color: #efc7be;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-body {
+      padding: 14px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #314139;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      color: var(--ink);
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 9px 10px;
+      outline: none;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(22, 116, 90, 0.13);
+    }
+
+    textarea {
+      min-height: 104px;
+      resize: vertical;
+      line-height: 1.55;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-2);
+    }
+
+    .segmented button {
+      min-height: 34px;
+      border-radius: 6px;
+      color: var(--muted);
+      background: transparent;
+      font-weight: 700;
+    }
+
+    .segmented button.active {
+      color: #fff;
+      background: var(--accent);
+    }
+
+    .examples {
+      display: grid;
+      gap: 7px;
+    }
+
+    .example {
+      width: 100%;
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: #26352d;
+      text-align: left;
+      padding: 8px 10px;
+      line-height: 1.35;
+    }
+
+    .example:hover {
+      border-color: #a9cfc0;
+      background: #f7fbf9;
+    }
+
+    .health-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 9px;
+      background: #fff;
+      min-width: 0;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 3px;
+    }
+
+    .metric strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .main {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      height: 100vh;
+    }
+
+    .topbar {
+      background: rgba(255,255,255,0.88);
+      border-bottom: 1px solid var(--line);
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .topbar h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .icon-btn, .link-btn {
+      min-height: 34px;
+      border-radius: 7px;
+      padding: 7px 10px;
+      color: #244037;
+      background: #fff;
+      border: 1px solid var(--line);
+      text-decoration: none;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .icon-btn:hover, .link-btn:hover {
+      border-color: #a9cfc0;
+      background: #f7fbf9;
+    }
+
+    .conversation {
+      overflow: auto;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .empty-state {
+      margin: auto;
+      max-width: 560px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .empty-state h3 {
+      color: var(--ink);
+      margin: 0 0 8px;
+      font-size: 22px;
+    }
+
+    .message {
+      max-width: 860px;
+      display: grid;
+      gap: 8px;
+      animation: rise 0.18s ease-out;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      justify-items: end;
+    }
+
+    .message.assistant {
+      align-self: flex-start;
+    }
+
+    .bubble {
+      border-radius: 8px;
+      padding: 12px 13px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-word;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .user .bubble {
+      color: #fff;
+      border-color: var(--accent);
+      background: var(--accent);
+    }
+
+    .assistant .bubble {
+      box-shadow: var(--shadow);
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag {
+      padding: 4px 7px;
+      border-radius: 999px;
+      background: #eef3f0;
+      color: #4b5f55;
+      font-size: 12px;
+      border: 1px solid var(--line);
+    }
+
+    .recipe-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      width: min(860px, 100%);
+    }
+
+    .recipe-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 11px;
+      box-shadow: var(--shadow);
+    }
+
+    .recipe-card h4 {
+      margin: 0 0 7px;
+      font-size: 15px;
+    }
+
+    .recipe-card p {
+      margin: 6px 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    details {
+      width: min(860px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 10px 12px;
+    }
+
+    summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    pre {
+      margin: 10px 0 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 12px;
+      line-height: 1.5;
+      max-height: 280px;
+      overflow: auto;
+      background: #f7f9f8;
+      border-radius: 7px;
+      padding: 10px;
+    }
+
+    .composer {
+      border-top: 1px solid var(--line);
+      background: #fff;
+      padding: 14px 20px;
+    }
+
+    .composer-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .composer textarea {
+      min-height: 58px;
+      max-height: 180px;
+    }
+
+    .send {
+      min-width: 98px;
+      min-height: 58px;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--accent);
+      font-weight: 800;
+    }
+
+    .send:hover {
+      background: #12634d;
+    }
+
+    .image-tools {
+      display: none;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .image-mode .image-tools {
+      display: grid;
+    }
+
+    .preview {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fbf9;
+    }
+
+    .preview.active {
+      display: flex;
+    }
+
+    .preview img {
+      width: 54px;
+      height: 54px;
+      object-fit: cover;
+      border-radius: 7px;
+      border: 1px solid var(--line);
+    }
+
+    .preview span {
+      font-size: 12px;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .error {
+      color: var(--danger);
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 940px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .main {
+        height: auto;
+        min-height: 72vh;
+      }
+      .conversation {
+        min-height: 520px;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .topbar, .composer, .conversation, .sidebar {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+      .composer-grid {
+        grid-template-columns: 1fr;
+      }
+      .send {
+        width: 100%;
+        min-height: 44px;
+      }
+      .health-grid {
+        grid-template-columns: 1fr;
+      }
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+      .top-actions {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell" id="appShell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-main">
+          <div class="mark" aria-hidden="true">SR</div>
+          <div>
+            <h1>SmartRecipe</h1>
+            <p class="subtitle">多智能体菜谱助手</p>
+          </div>
+        </div>
+        <div class="status-pill" id="statusPill">检查中</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-body">
+          <div class="section-title">对话设置</div>
+          <div class="segmented" role="tablist" aria-label="输入模式">
+            <button class="active" id="textMode" type="button">文本</button>
+            <button id="imageMode" type="button">图片</button>
+          </div>
+          <div class="field">
+            <label for="sessionId">Session ID</label>
+            <input id="sessionId" value="demo-user" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="topK">返回菜谱数</label>
+            <select id="topK">
+              <option value="3" selected>3</option>
+              <option value="1">1</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-body">
+          <div class="section-title">服务状态</div>
+          <div class="health-grid" id="healthGrid">
+            <div class="metric"><span>状态</span><strong>检查中</strong></div>
+            <div class="metric"><span>检索</span><strong>-</strong></div>
+            <div class="metric"><span>记忆</span><strong>-</strong></div>
+            <div class="metric"><span>数据库 Agent</span><strong>-</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-body">
+          <div class="section-title">示例问题</div>
+          <div class="examples">
+            <button class="example" type="button">推荐低脂高蛋白晚餐，家里有鸡胸肉和西兰花</button>
+            <button class="example" type="button">老醋花生米怎么做？</button>
+            <button class="example" type="button">我不吃香菜，对虾过敏，以后推荐时记住</button>
+            <button class="example" type="button">热量最低的五道菜是什么？</button>
+            <button class="example" type="button">鸡胸肉通常和哪些食材搭配？</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h2>智能问答工作台</h2>
+          <p class="subtitle">文本问答、图片识别、RAG/SQL/Neo4j 多源结果统一展示</p>
+        </div>
+        <div class="top-actions">
+          <a class="link-btn" href="/ui/database.html" target="_blank" rel="noreferrer">数据库预览</a>
+          <button class="icon-btn" id="clearChat" type="button">清空对话</button>
+        </div>
+      </header>
+
+      <section class="conversation" id="conversation" aria-live="polite">
+        <div class="empty-state" id="emptyState">
+          <h3>开始一次菜谱对话</h3>
+          <p>可以询问菜谱做法、饮食目标、食材替换、数据库统计、图谱关系，也可以切换到图片模式上传菜品照片。</p>
+        </div>
+      </section>
+
+      <form class="composer" id="composer">
+        <div class="image-tools">
+          <div class="field">
+            <label for="imageFile">菜品图片</label>
+            <input id="imageFile" type="file" accept="image/*">
+          </div>
+          <div class="preview" id="imagePreview">
+            <img id="previewImage" alt="图片预览">
+            <span id="previewName"></span>
+          </div>
+        </div>
+        <div class="composer-grid">
+          <textarea id="message" placeholder="输入问题，例如：推荐低脂高蛋白晚餐"></textarea>
+          <button class="send" id="sendButton" type="submit">发送</button>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <script>
+    const shell = document.querySelector("#appShell");
+    const conversation = document.querySelector("#conversation");
+    const emptyState = document.querySelector("#emptyState");
+    const messageInput = document.querySelector("#message");
+    const sessionInput = document.querySelector("#sessionId");
+    const topKInput = document.querySelector("#topK");
+    const sendButton = document.querySelector("#sendButton");
+    const textMode = document.querySelector("#textMode");
+    const imageMode = document.querySelector("#imageMode");
+    const imageFile = document.querySelector("#imageFile");
+    const imagePreview = document.querySelector("#imagePreview");
+    const previewImage = document.querySelector("#previewImage");
+    const previewName = document.querySelector("#previewName");
+    const statusPill = document.querySelector("#statusPill");
+    const healthGrid = document.querySelector("#healthGrid");
+
+    let mode = "text";
+    let pending = false;
+
+    const defaults = {
+      text: "推荐低脂高蛋白晚餐，家里有鸡胸肉和西兰花",
+      image: "这是什么菜？请先识别，再推荐类似做法。"
+    };
+
+    messageInput.value = defaults.text;
+
+    function setMode(next) {
+      mode = next;
+      const isImage = mode === "image";
+      shell.classList.toggle("image-mode", isImage);
+      textMode.classList.toggle("active", !isImage);
+      imageMode.classList.toggle("active", isImage);
+      if (!messageInput.value.trim() || messageInput.value === defaults.text || messageInput.value === defaults.image) {
+        messageInput.value = isImage ? defaults.image : defaults.text;
+      }
+      messageInput.focus();
+    }
+
+    textMode.addEventListener("click", () => setMode("text"));
+    imageMode.addEventListener("click", () => setMode("image"));
+
+    document.querySelector("#clearChat").addEventListener("click", () => {
+      conversation.innerHTML = "";
+      conversation.appendChild(emptyState);
+      emptyState.hidden = false;
+    });
+
+    document.querySelectorAll(".example").forEach((button) => {
+      button.addEventListener("click", () => {
+        setMode("text");
+        messageInput.value = button.textContent.trim();
+        messageInput.focus();
+      });
+    });
+
+    imageFile.addEventListener("change", () => {
+      const file = imageFile.files[0];
+      if (!file) {
+        imagePreview.classList.remove("active");
+        return;
+      }
+      previewImage.src = URL.createObjectURL(file);
+      previewName.textContent = `${file.name} · ${Math.round(file.size / 1024)} KB`;
+      imagePreview.classList.add("active");
+    });
+
+    async function loadHealth() {
+      try {
+        const data = await fetchJson("/health");
+        statusPill.textContent = "在线";
+        statusPill.classList.remove("offline");
+        healthGrid.innerHTML = `
+          <div class="metric"><span>状态</span><strong>${escapeHtml(data.status || "-")}</strong></div>
+          <div class="metric"><span>检索</span><strong>${escapeHtml(data.retriever || "-")}</strong></div>
+          <div class="metric"><span>记忆</span><strong>${escapeHtml(data.memory || "-")}</strong></div>
+          <div class="metric"><span>数据库 Agent</span><strong>${escapeHtml(data.enable_database_agents || "-")}</strong></div>
+        `;
+      } catch (error) {
+        statusPill.textContent = "离线";
+        statusPill.classList.add("offline");
+        healthGrid.innerHTML = `
+          <div class="metric"><span>状态</span><strong>不可用</strong></div>
+          <div class="metric"><span>检索</span><strong>-</strong></div>
+          <div class="metric"><span>记忆</span><strong>-</strong></div>
+          <div class="metric"><span>数据库 Agent</span><strong>-</strong></div>
+        `;
+      }
+    }
+
+    document.querySelector("#composer").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (pending) return;
+      const text = messageInput.value.trim();
+      if (!text) return;
+      if (mode === "image" && !imageFile.files[0]) {
+        appendAssistant({ answer: "请先选择一张菜品图片。", error: true });
+        return;
+      }
+
+      appendUser(text, mode === "image" ? imageFile.files[0] : null);
+      setPending(true);
+      const typing = appendTyping();
+      try {
+        const data = mode === "image" ? await submitImage(text) : await submitText(text);
+        typing.remove();
+        appendAssistant(data);
+      } catch (error) {
+        typing.remove();
+        appendAssistant({ answer: `请求失败：${error.message}`, error: true });
+      } finally {
+        setPending(false);
+      }
+    });
+
+    async function submitText(text) {
+      return fetchJson("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          session_id: sessionInput.value.trim() || "demo-user",
+          top_k: Number(topKInput.value)
+        })
+      });
+    }
+
+    async function submitImage(text) {
+      const form = new FormData();
+      form.append("image", imageFile.files[0]);
+      form.append("message", text);
+      form.append("session_id", sessionInput.value.trim() || "demo-user");
+      form.append("top_k", topKInput.value);
+      return fetchJson("/chat/image", { method: "POST", body: form });
+    }
+
+    async function fetchJson(url, options) {
+      const response = await fetch(url, options);
+      const text = await response.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(text || response.statusText);
+      }
+      if (!response.ok) {
+        throw new Error(data.detail || data.message || response.statusText);
+      }
+      return data;
+    }
+
+    function appendUser(text, file) {
+      emptyState.hidden = true;
+      const item = document.createElement("article");
+      item.className = "message user";
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = text;
+      item.appendChild(bubble);
+      if (file) {
+        const meta = document.createElement("div");
+        meta.className = "meta-row";
+        meta.innerHTML = `<span class="tag">图片：${escapeHtml(file.name)}</span>`;
+        item.appendChild(meta);
+      }
+      conversation.appendChild(item);
+      scrollToBottom();
+    }
+
+    function appendTyping() {
+      emptyState.hidden = true;
+      const item = document.createElement("article");
+      item.className = "message assistant";
+      item.innerHTML = `<div class="bubble">正在思考并调用合适的 Agent...</div>`;
+      conversation.appendChild(item);
+      scrollToBottom();
+      return item;
+    }
+
+    function appendAssistant(data) {
+      emptyState.hidden = true;
+      const item = document.createElement("article");
+      item.className = "message assistant";
+      const bubble = document.createElement("div");
+      bubble.className = `bubble${data.error ? " error" : ""}`;
+      bubble.textContent = data.answer || "没有返回内容。";
+      item.appendChild(bubble);
+
+      if (!data.error) {
+        const row = document.createElement("div");
+        row.className = "meta-row";
+        row.innerHTML = `
+          <span class="tag">意图：${escapeHtml(data.intent || "-")}</span>
+          <span class="tag">Agent：${escapeHtml(data.agent || "-")}</span>
+          <span class="tag">Session：${escapeHtml(data.session_id || "-")}</span>
+        `;
+        item.appendChild(row);
+
+        if (Array.isArray(data.recipes) && data.recipes.length) {
+          item.appendChild(renderRecipes(data.recipes));
+        }
+
+        const detail = document.createElement("details");
+        detail.innerHTML = `<summary>查看原始 meta</summary><pre>${escapeHtml(JSON.stringify(data.meta || {}, null, 2))}</pre>`;
+        item.appendChild(detail);
+      }
+
+      conversation.appendChild(item);
+      scrollToBottom();
+    }
+
+    function renderRecipes(recipes) {
+      const grid = document.createElement("div");
+      grid.className = "recipe-grid";
+      for (const recipe of recipes) {
+        const card = document.createElement("div");
+        card.className = "recipe-card";
+        const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients.slice(0, 5).join("、") : "";
+        const tags = Array.isArray(recipe.tags) ? recipe.tags.slice(0, 4).join("、") : "";
+        card.innerHTML = `
+          <h4>${escapeHtml(recipe.name || "未命名菜谱")}</h4>
+          <p>匹配分：${escapeHtml(String(recipe.score ?? "-"))} · ${escapeHtml(recipe.category || "未分类")}</p>
+          <p>${escapeHtml(recipe.cooking_time || "时间未知")} · ${escapeHtml(recipe.difficulty || "难度未知")} · ${escapeHtml(String(recipe.calories ?? 0))} kcal</p>
+          <p>食材：${escapeHtml(ingredients || "暂无")}</p>
+          <p>标签：${escapeHtml(tags || "暂无")}</p>
+        `;
+        grid.appendChild(card);
+      }
+      return grid;
+    }
+
+    function setPending(value) {
+      pending = value;
+      sendButton.disabled = value;
+      sendButton.textContent = value ? "处理中" : "发送";
+    }
+
+    function scrollToBottom() {
+      conversation.scrollTop = conversation.scrollHeight;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    loadHealth();
+  </script>
+</body>
+</html>

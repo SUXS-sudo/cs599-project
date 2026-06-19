@@ -1,0 +1,11 @@
+profile: cookbook_default
+field_aliases:
+  title: ["菜名", "名称", "品名"]
+  ingredients: ["原料", "主料", "辅料", "食材"]
+  seasonings: ["调料", "调味料"]
+  steps: ["做法", "制作方法", "烹调方法", "步骤"]
+  tips: ["小提示", "特点", "营养功效"]
+split_patterns:
+  title_patterns:
+    - "^[一二三四五六七八九十]+、.+"
+    - "^\\d+[.、].+"

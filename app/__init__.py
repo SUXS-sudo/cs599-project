@@ -1,0 +1,1 @@
+"""SmartRecipe demo package."""
