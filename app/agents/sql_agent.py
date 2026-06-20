@@ -38,8 +38,10 @@ class SQLAgent:
     def run(self, state: AgentState) -> AgentState:
         plan = self._build_llm_plan(state) or build_sql_plan(state.user_input, state.top_k)
         if plan is None:
-            state.agent_output = "SQL Agent 暂时只支持按热量、时间、分类、标签和适合人群筛选菜谱。"
+            state.agent_output = "SQL Agent 暂时只支持按热量、时间、分类和食材筛选菜谱。"
             state.meta["sql_status"] = "unsupported"
+            state.meta["recipe_source"] = "llm_fallback_query"
+            state.meta["fallback_reason"] = "sql_rule_unsupported"
             return state
 
         sql = ensure_limit(plan["sql"], max(state.top_k, 5))
@@ -57,6 +59,8 @@ class SQLAgent:
                 state.agent_output = f"SQL Agent 查询失败：{type(exc).__name__}: {exc}"
                 state.meta["sql_status"] = "failed"
                 state.meta["sql_query"] = sql
+                state.meta["recipe_source"] = "llm_fallback_query"
+                state.meta["fallback_reason"] = "sql_failed"
                 return state
             self._set_cached_rows(sql, parameters, rows)
             state.meta["sql_cache_hit"] = False
@@ -138,9 +142,9 @@ class SQLAgent:
 def build_sql_prompt(message: str, top_k: int) -> str:
     return (
         "你是 SmartRecipe 的 Text2SQL 生成器。只允许为 MySQL 生成只读 SELECT 查询。\n"
-        "可用表：recipes r(id,name,category,cooking_time_text,cooking_time_minutes,difficulty,calories), "
-        "ingredients i(id,name), recipe_ingredients ri(recipe_id,ingredient_id), "
-        "recipe_tags rt(recipe_id,tag), recipe_suitable_for rst(recipe_id,target)。\n"
+        "可用表：recipes r(id,name,category,cooking_time_minutes,difficulty,calories_per_100g,"
+        "protein_g_per_100g,fat_g_per_100g,nutrition_estimated), "
+        "ingredients i(id,name), recipe_ingredients ri(recipe_id,ingredient_id,amount_text)。\n"
         "不要生成 INSERT/UPDATE/DELETE/DROP/ALTER/CREATE。参数用 %s 占位。\n"
         "返回紧凑 JSON，不要 markdown："
         '{"sql":"SELECT ...","params":["参数"],"title":"查询标题","answer_type":"recipes"}\n'
@@ -173,10 +177,7 @@ def build_sql_plan(message: str, top_k: int) -> dict[str, Any] | None:
     title = "符合条件的菜谱"
     where = []
     params: list[Any] = []
-    joins = [
-        "LEFT JOIN recipe_tags rt ON rt.recipe_id = r.id",
-        "LEFT JOIN recipe_suitable_for rst ON rst.recipe_id = r.id",
-    ]
+    joins = []
 
     aggregate = None
     if "平均" in text and any(word in text for word in ("热量", "卡路里")):
@@ -197,8 +198,8 @@ def build_sql_plan(message: str, top_k: int) -> dict[str, Any] | None:
 
     for word in CATEGORY_WORDS:
         if word in text:
-            where.append("(r.category = %s OR rst.target = %s OR rt.tag = %s)")
-            params.extend([word, word, word])
+            where.append("r.category = %s")
+            params.append(word)
             title = f"适合{word}的菜谱"
             break
 
@@ -211,16 +212,22 @@ def build_sql_plan(message: str, top_k: int) -> dict[str, Any] | None:
             title = f"包含{word}的菜谱"
             break
 
-    for word in TAG_WORDS:
-        if word in text:
-            where.append("(rt.tag = %s OR rst.target = %s)")
-            params.extend([word, word])
-            title = f"{word}相关菜谱"
-            break
-    if "脂肪" in text and "低" in text and not any(param == "低脂" for param in params):
-        where.append("(rt.tag = %s OR rst.target = %s)")
-        params.extend(["低脂", "低脂"])
-        title = "低脂相关菜谱"
+    if "高蛋白" in text:
+        where.append("r.protein_g_per_100g >= %s")
+        params.append(12)
+        title = "高蛋白菜谱"
+    if "低脂" in text or ("脂肪" in text and "低" in text):
+        where.append("r.fat_g_per_100g <= %s")
+        params.append(8)
+        title = "低脂菜谱" if "高蛋白" not in text else "低脂高蛋白菜谱"
+    if "低热量" in text or "低卡" in text:
+        where.append("r.calories_per_100g <= %s")
+        params.append(150)
+        title = "低热量菜谱"
+
+    unsupported_tags = tuple(word for word in TAG_WORDS if word not in {"低脂", "低热量", "高蛋白"})
+    if any(word in text for word in unsupported_tags) and not where:
+        return None
 
     if not where and not any(word in text for word in ("热量", "卡路里", "最高", "最低", "多少", "平均", "数量")):
         return None
@@ -229,7 +236,7 @@ def build_sql_plan(message: str, top_k: int) -> dict[str, Any] | None:
     join_sql = "\n    ".join(dict.fromkeys(joins))
     if aggregate == "average_calories":
         sql = f"""
-        SELECT ROUND(AVG(r.calories), 1) AS avg_calories, COUNT(DISTINCT r.id) AS recipe_count
+        SELECT ROUND(AVG(r.calories_per_100g), 1) AS avg_calories, COUNT(DISTINCT r.id) AS recipe_count
         FROM recipes r
         {join_sql}
         WHERE {where_sql}
@@ -248,14 +255,16 @@ def build_sql_plan(message: str, top_k: int) -> dict[str, Any] | None:
     SELECT DISTINCT
       r.name,
       r.category,
-      r.cooking_time_text,
       r.cooking_time_minutes,
       r.difficulty,
-      r.calories
+      r.calories_per_100g AS calories,
+      r.protein_g_per_100g,
+      r.fat_g_per_100g,
+      r.nutrition_estimated
     FROM recipes r
     {join_sql}
     WHERE {where_sql}
-    ORDER BY r.calories {order}, r.cooking_time_minutes ASC
+    ORDER BY r.calories_per_100g {order}, r.cooking_time_minutes ASC
     """
     return {"sql": sql, "params": params, "title": title, "answer_type": "recipes"}
 
@@ -273,16 +282,25 @@ def format_sql_answer(rows: list[dict[str, Any]], title: str) -> str:
     lines = [f"{title}："]
     if "avg_calories" in rows[0]:
         row = rows[0]
-        return f"{title}：共 {row.get('recipe_count', 0)} 道菜，平均热量约 {row.get('avg_calories')} 千卡。"
+        return f"{title}：共 {row.get('recipe_count', 0)} 道菜，平均热量约 {row.get('avg_calories')} kcal/100g。"
     if "recipe_count" in rows[0] and len(rows[0]) == 1:
         return f"{title}：共 {rows[0].get('recipe_count', 0)} 道菜。"
     for index, row in enumerate(rows, start=1):
         lines.append(
             f"{index}. {row['name']}：{row.get('category') or '未分类'}，"
-            f"{row.get('cooking_time_text') or '时间未知'}，"
-            f"难度{row.get('difficulty') or '未知'}，约{row.get('calories')}千卡。"
+            f"{format_minutes(row.get('cooking_time_minutes'))}，"
+            f"难度{row.get('difficulty') or '未知'}，约{row.get('calories')} kcal/100g，"
+            f"蛋白质{row.get('protein_g_per_100g') or 0}g/100g，脂肪{row.get('fat_g_per_100g') or 0}g/100g。"
         )
     return "\n".join(lines)
+
+
+def format_minutes(value: Any) -> str:
+    try:
+        minutes = int(value or 0)
+    except (TypeError, ValueError):
+        minutes = 0
+    return f"{minutes}分钟" if minutes > 0 else "时间未知"
 
 
 def parse_json_object(raw: str) -> dict[str, Any] | None:

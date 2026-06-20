@@ -28,10 +28,6 @@ class FakeStore:
     def stats(self) -> dict:
         return self.data
 
-    def get_user_preferences(self, session_id: str) -> dict:
-        return {"preferences": ["低脂"], "allergies": [], "dislikes": []}
-
-
 class FakeWorkflow:
     def __init__(self) -> None:
         self.sql_agent = type("SqlAgent", (), {"store": FakeStore({"recipes": 300})})()
@@ -60,10 +56,17 @@ def test_debug_session_returns_preferences_history_and_turn_count(monkeypatch) -
     data = response.json()
     assert data["session_id"] == "demo"
     assert data["preferences"]["preferences"] == ["清淡"]
-    assert data["mysql_preferences"]["ok"] is True
-    assert data["mysql_preferences"]["data"]["preferences"] == ["低脂"]
     assert data["turn_count"] == 1
     assert data["history"][0]["role"] == "user"
+
+
+def test_root_redirects_to_chat_ui() -> None:
+    client = TestClient(main.app, follow_redirects=False)
+
+    response = client.get("/")
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/ui/"
 
 
 def test_debug_stats_returns_service_sections(monkeypatch) -> None:

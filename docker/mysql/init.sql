@@ -5,10 +5,12 @@ CREATE TABLE IF NOT EXISTS recipes (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   name VARCHAR(128) NOT NULL UNIQUE,
   category VARCHAR(64),
-  cooking_time_text VARCHAR(64),
   cooking_time_minutes INT,
   difficulty VARCHAR(32),
-  calories INT,
+  calories_per_100g INT,
+  protein_g_per_100g DECIMAL(6,1),
+  fat_g_per_100g DECIMAL(6,1),
+  nutrition_estimated BOOLEAN NOT NULL DEFAULT TRUE,
   steps TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -29,49 +31,6 @@ CREATE TABLE IF NOT EXISTS recipe_ingredients (
     FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
   CONSTRAINT fk_recipe_ingredients_ingredient
     FOREIGN KEY (ingredient_id) REFERENCES ingredients(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS recipe_tags (
-  recipe_id BIGINT NOT NULL,
-  tag VARCHAR(64) NOT NULL,
-  PRIMARY KEY (recipe_id, tag),
-  CONSTRAINT fk_recipe_tags_recipe
-    FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS recipe_suitable_for (
-  recipe_id BIGINT NOT NULL,
-  target VARCHAR(64) NOT NULL,
-  PRIMARY KEY (recipe_id, target),
-  CONSTRAINT fk_recipe_suitable_for_recipe
-    FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS user_profiles (
-  session_id VARCHAR(128) PRIMARY KEY,
-  preferences JSON,
-  allergies JSON,
-  dislikes JSON,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS chat_turns (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  session_id VARCHAR(128) NOT NULL,
-  user_message TEXT NOT NULL,
-  assistant_message TEXT,
-  intent VARCHAR(64),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_chat_turns_session_created (session_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS eval_runs (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  eval_type VARCHAR(64) NOT NULL,
-  backend VARCHAR(64),
-  metrics JSON NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_eval_runs_type_created (eval_type, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS document_indexes (

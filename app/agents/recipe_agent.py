@@ -30,6 +30,14 @@ ALIAS_TO_STANDARD = {
 }
 FUZZY_NAME_THRESHOLD = 0.72
 VECTOR_NAME_THRESHOLD = 0.76
+EXPLICIT_DISH_STYLE_PREFIXES = (
+    "红烧", "清蒸", "糖醋", "宫保", "鱼香", "麻辣", "香辣",
+    "蒜蓉", "凉拌", "爆炒", "油焖", "酱烧",
+)
+GENERIC_RECIPE_TARGET_WORDS = (
+    "什么", "啥", "推荐", "随便", "菜谱", "食谱", "早餐", "午餐",
+    "晚餐", "夜宵", "低脂", "低糖", "低盐", "高蛋白", "减脂", "增肌",
+)
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 PROCESSED_DIR = ROOT_DIR / "data" / "processed"
 
@@ -70,13 +78,14 @@ class RecipeAgent:
                     return state
 
         query_suffix = preferences_to_query_suffix(preferences)
-        query = f"{state.chat_history}\n{state.user_input}\n{query_suffix}".strip()
+        query = f"{state.user_input}\n{query_suffix}".strip()
+        state.meta["retrieval_query_scope"] = "current_turn"
         candidates = self.retriever.search(query, max(state.top_k * 3, state.top_k))
         allergy_safe = [item for item in candidates if not violates_preferences(item[0].ingredients, [], preferences.allergies)]
         preference_safe = [
             item for item in allergy_safe if not violates_preferences(item[0].ingredients, preferences.dislikes, [])
         ]
-        safe_candidates = preference_safe or allergy_safe
+        safe_candidates = preference_safe
 
         if state.intent == "recipe_detail":
             target_name = state.meta.get("recipe_detail_target") or extract_recipe_detail_target(state.user_input)
@@ -103,7 +112,9 @@ class RecipeAgent:
         state.retrieved_docs = safe_candidates[: state.top_k]
         self.logger.info("菜谱检索完成 候选数=%s 选中数=%s", len(candidates), len(state.retrieved_docs))
         if not state.retrieved_docs:
-            state.agent_output = "没有检索到匹配菜谱。"
+            state.agent_output = "本地菜谱候选经过当前会话的过敏与不吃食材过滤后为空。"
+            state.meta["recipe_source"] = "llm_fallback_query"
+            state.meta["fallback_reason"] = "rag_empty_after_preferences"
             return state
 
         names = "、".join(recipe.name for recipe, _ in state.retrieved_docs)
@@ -296,23 +307,24 @@ class RecipeAgent:
                 SELECT
                   r.name,
                   r.category,
-                  r.cooking_time_text,
                   r.cooking_time_minutes,
                   r.difficulty,
-                  r.calories,
+                  r.calories_per_100g AS calories,
+                  r.protein_g_per_100g,
+                  r.fat_g_per_100g,
+                  r.nutrition_estimated,
                   r.steps,
                   GROUP_CONCAT(DISTINCT i.name ORDER BY i.name SEPARATOR '、') AS ingredients,
-                  GROUP_CONCAT(DISTINCT rt.tag ORDER BY rt.tag SEPARATOR '、') AS tags,
-                  GROUP_CONCAT(DISTINCT rst.target ORDER BY rst.target SEPARATOR '、') AS suitable_for
+                  '' AS tags,
+                  '' AS suitable_for
                 FROM recipes r
                 LEFT JOIN recipe_ingredients ri ON ri.recipe_id = r.id
                 LEFT JOIN ingredients i ON i.id = ri.ingredient_id
-                LEFT JOIN recipe_tags rt ON rt.recipe_id = r.id
-                LEFT JOIN recipe_suitable_for rst ON rst.recipe_id = r.id
                 WHERE r.name = %s
                 GROUP BY
-                  r.id, r.name, r.category, r.cooking_time_text, r.cooking_time_minutes,
-                  r.difficulty, r.calories, r.steps
+                  r.id, r.name, r.category, r.cooking_time_minutes, r.difficulty,
+                  r.calories_per_100g, r.protein_g_per_100g, r.fat_g_per_100g,
+                  r.nutrition_estimated, r.steps
                 LIMIT 1
                 """,
                 (target_name,),
@@ -420,13 +432,17 @@ def recipe_to_row(recipe: Recipe) -> dict[str, object]:
 
 
 def normalize_recipe_row(row: dict[str, object]) -> dict[str, object]:
+    cooking_time_minutes = row.get("cooking_time_minutes") or 0
     return {
         "name": row.get("name") or "",
         "category": row.get("category") or "",
-        "cooking_time_text": row.get("cooking_time_text") or "",
-        "cooking_time_minutes": row.get("cooking_time_minutes"),
+        "cooking_time_text": f"{cooking_time_minutes}分钟" if cooking_time_minutes else "",
+        "cooking_time_minutes": cooking_time_minutes,
         "difficulty": row.get("difficulty") or "",
         "calories": row.get("calories") or 0,
+        "protein_g_per_100g": row.get("protein_g_per_100g") or 0,
+        "fat_g_per_100g": row.get("fat_g_per_100g") or 0,
+        "nutrition_estimated": bool(row.get("nutrition_estimated", True)),
         "steps": row.get("steps") or "",
         "ingredients": row.get("ingredients") or "",
         "tags": row.get("tags") or "",
@@ -446,7 +462,9 @@ def format_direct_recipe_answer(row: dict[str, object]) -> str:
         f"- 分类：{row.get('category') or '未分类'}",
         f"- 难度：{row.get('difficulty') or '未知'}",
         f"- 用时：{row.get('cooking_time_text') or '时间未知'}",
-        f"- 热量：约 {row.get('calories') or 0} 千卡",
+        f"- 热量：约 {row.get('calories') or 0} kcal/100g",
+        f"- 蛋白质：约 {row.get('protein_g_per_100g') or 0} g/100g",
+        f"- 脂肪：约 {row.get('fat_g_per_100g') or 0} g/100g",
         "主要食材：",
         f"- {ingredients}",
         "适用标签：",
@@ -518,9 +536,13 @@ def split_steps(text: str) -> list[str]:
 
 def extract_recipe_detail_target(message: str) -> str:
     text = message.strip()
+    alias_hit = extract_known_recipe_alias(text)
+    if alias_hit:
+        return alias_hit
     patterns = [
+        r"(?:想吃|要吃|来一份|来个)(.+?)(?:了|啦|吧)?$",
         r"(.+?)(?:怎么做|怎么烧|怎么煮|怎么炒|如何做|做法|教程|步骤)",
-        r"(?:做|烧|煮|炒)(.+?)(?:怎么做|做法|教程|步骤)?$",
+        r"^(?:做|烧|煮|炒)(.+?)(?:怎么做|做法|教程|步骤)?$",
     ]
     for pattern in patterns:
         match = re.search(pattern, text)
@@ -529,6 +551,27 @@ def extract_recipe_detail_target(message: str) -> str:
         target = cleanup_recipe_target(match.group(1))
         if target:
             return target
+    standalone = cleanup_recipe_target(text)
+    if standalone.startswith(EXPLICIT_DISH_STYLE_PREFIXES) and is_specific_dish_target(standalone):
+        return standalone
+    return ""
+
+
+def is_specific_dish_target(target: str) -> bool:
+    """Distinguish a concrete dish name from broad recommendation constraints."""
+    value = cleanup_recipe_target(target)
+    if not 2 <= len(value) <= 24:
+        return False
+    if any(word in value for word in GENERIC_RECIPE_TARGET_WORDS):
+        return False
+    return bool(re.search(r"[\u4e00-\u9fff]", value))
+
+
+def extract_known_recipe_alias(text: str) -> str:
+    aliases = sorted(ALIAS_TO_STANDARD, key=len, reverse=True)
+    for alias in aliases:
+        if alias in text:
+            return alias
     return ""
 
 

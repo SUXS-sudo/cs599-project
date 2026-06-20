@@ -33,8 +33,8 @@ def main() -> int:
         ingredient_rows = store.execute_read(
             """
             MATCH (recipe:Recipe)-[:USES]->(:Ingredient {name: $ingredient})
-            RETURN recipe.name AS name, recipe.calories AS calories
-            ORDER BY recipe.calories ASC
+            RETURN recipe.name AS name, recipe.calories_per_100g AS calories
+            ORDER BY recipe.calories_per_100g ASC
             LIMIT 5
             """,
             {"ingredient": args.ingredient},
@@ -42,8 +42,8 @@ def main() -> int:
         goal_rows = store.execute_read(
             """
             MATCH (recipe:Recipe)-[:SUITABLE_FOR]->(:Goal {name: $goal})
-            RETURN recipe.name AS name, recipe.calories AS calories
-            ORDER BY recipe.calories ASC
+            RETURN recipe.name AS name, recipe.calories_per_100g AS calories
+            ORDER BY recipe.calories_per_100g ASC
             LIMIT 5
             """,
             {"goal": args.goal},
@@ -60,10 +60,10 @@ def main() -> int:
         print(f"- {key}={value}")
     print(f"sample_ingredient={args.ingredient}")
     for row in ingredient_rows:
-        print(f"- {row['name']} | calories={row['calories']}")
+        print(f"- {row['name']} | calories_per_100g={row['calories']}")
     print(f"sample_goal={args.goal}")
     for row in goal_rows:
-        print(f"- {row['name']} | calories={row['calories']}")
+        print(f"- {row['name']} | calories_per_100g={row['calories']}")
     return 0
 
 

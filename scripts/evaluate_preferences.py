@@ -26,7 +26,6 @@ def main() -> int:
         help="Memory backend used for this evaluation.",
     )
     parser.add_argument("--show-errors", action="store_true", help="Print failed cases.")
-    parser.add_argument("--sync-mysql", action="store_true", help="Also sync preferences into MySQL user_profiles.")
     args = parser.parse_args()
 
     os.environ["MEMORY_BACKEND"] = args.backend
@@ -42,7 +41,7 @@ def main() -> int:
 
     cases = load_cases(Path(args.eval_file))
     memory_store = RedisMemoryStore(max_messages=10) if args.backend == "redis" else MemoryStore(max_messages=10)
-    preference_agent = PreferenceAgent(memory_store, sync_mysql=args.sync_mysql)
+    preference_agent = PreferenceAgent(memory_store)
     recipe_agent = RecipeAgent(RecipeRetriever(ROOT_DIR / "data" / "recipes.json"))
 
     ok = 0
@@ -78,11 +77,7 @@ def main() -> int:
         allergies_ok = expected_allergies.issubset(set(prefs.allergies))
         dislikes_ok = expected_dislikes.issubset(set(prefs.dislikes))
         filter_ok = not contains_blocked(returned_ingredients, blocked)
-        mysql_ok = True
-        mysql_preferences = None
-        if args.sync_mysql:
-            mysql_ok, mysql_preferences = check_mysql_preferences(session_id, prefs)
-        case_ok = preferences_ok and allergies_ok and dislikes_ok and filter_ok and bool(returned) and mysql_ok
+        case_ok = preferences_ok and allergies_ok and dislikes_ok and filter_ok and bool(returned)
         ok += int(case_ok)
         if not case_ok:
             errors.append(
@@ -99,9 +94,7 @@ def main() -> int:
                         "dislikes_ok": dislikes_ok,
                         "filter_ok": filter_ok,
                         "has_results": bool(returned),
-                        "mysql_ok": mysql_ok,
                     },
-                    "mysql_preferences": mysql_preferences,
                 }
             )
 
@@ -114,23 +107,6 @@ def main() -> int:
         for error in errors:
             print(json.dumps(error, ensure_ascii=False))
     return 0 if ok == total else 1
-
-
-def check_mysql_preferences(session_id: str, expected) -> tuple[bool, dict | None]:
-    try:
-        from app.services.mysql_store import MySQLStore
-
-        actual = MySQLStore().get_user_preferences(session_id)
-    except Exception:
-        return False, None
-    if actual is None:
-        return False, None
-    ok = (
-        set(expected.preferences).issubset(set(actual.get("preferences", [])))
-        and set(expected.allergies).issubset(set(actual.get("allergies", [])))
-        and set(expected.dislikes).issubset(set(actual.get("dislikes", [])))
-    )
-    return ok, actual
 
 
 def load_cases(path: Path) -> list[dict]:

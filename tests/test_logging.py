@@ -11,6 +11,8 @@ def test_logging_configuration_creates_log_file() -> None:
     log.debug("logging test message")
 
     assert logger_service.LOG_FILE.exists()
+    assert logger_service.LOG_FILE.name.startswith("smart_recipe-")
+    assert logger_service.LOG_FILE.suffix == ".log"
 
 
 def test_logs_directory_is_ignored() -> None:

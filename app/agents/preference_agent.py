@@ -3,13 +3,13 @@ from __future__ import annotations
 import re
 
 from app.services.memory import MemoryStore, UserPreferences
-from app.services.mysql_store import MySQLStore
 from app.state import AgentState
 
 
 PREFERENCE_KEYWORDS = ("清淡", "少油", "低脂", "低糖", "高蛋白", "素食", "快手", "不辣", "低盐")
 PREFERENCE_ALIASES = {
     "牛肉": ["牛肉", "牛里脊", "牛腩", "肥牛", "牛肉末"],
+    "鸡肉": ["鸡肉", "鸡胸肉", "鸡腿肉", "鸡翅"],
     "虾": ["虾", "虾仁", "虾皮"],
     "鸡蛋": ["鸡蛋", "蛋液"],
     "辣": ["辣", "干辣椒", "花椒", "豆瓣酱"],
@@ -22,15 +22,8 @@ DISLIKE_PATTERNS = (
 
 
 class PreferenceAgent:
-    def __init__(
-        self,
-        memory_store: MemoryStore,
-        mysql_store: MySQLStore | None = None,
-        sync_mysql: bool = True,
-    ) -> None:
+    def __init__(self, memory_store: MemoryStore) -> None:
         self.memory_store = memory_store
-        self.sync_mysql = sync_mysql
-        self.mysql_store = mysql_store if mysql_store is not None else (MySQLStore() if sync_mysql else None)
 
     def run(self, state: AgentState) -> AgentState:
         extracted = extract_preferences(state.user_input)
@@ -44,18 +37,6 @@ class PreferenceAgent:
             state.meta["preference_update"] = extracted
         else:
             current = self.memory_store.get_preferences(state.session_id)
-
-        if self.sync_mysql and self.mysql_store is not None and any(extracted.values()):
-            try:
-                self.mysql_store.upsert_user_preferences(
-                    state.session_id,
-                    current.preferences,
-                    current.allergies,
-                    current.dislikes,
-                )
-                state.meta["preference_mysql_sync"] = "ok"
-            except Exception as exc:
-                state.meta["preference_mysql_sync"] = f"failed:{type(exc).__name__}"
 
         state.meta["user_preferences"] = current.to_dict()
         state.meta["preference_backend"] = getattr(self.memory_store, "backend", "memory")

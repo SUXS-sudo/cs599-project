@@ -13,18 +13,21 @@ class NutritionAgent:
     def run(self, state: AgentState) -> AgentState:
         preferences = preferences_from_dict(state.meta.get("user_preferences"))
         query_suffix = preferences_to_query_suffix(preferences)
-        query = f"{state.chat_history}\n{state.user_input}\n{query_suffix}".strip()
+        query = f"{state.user_input}\n{query_suffix}".strip()
+        state.meta["retrieval_query_scope"] = "current_turn"
         candidates = self.retriever.search(query, max(state.top_k * 3, state.top_k))
         allergy_safe = [item for item in candidates if not violates_preferences(item[0].ingredients, [], preferences.allergies)]
         preference_safe = [
             item for item in allergy_safe if not violates_preferences(item[0].ingredients, preferences.dislikes, [])
         ]
-        state.retrieved_docs = (preference_safe or allergy_safe)[: state.top_k]
+        state.retrieved_docs = preference_safe[: state.top_k]
         if not state.retrieved_docs:
             state.agent_output = (
                 "该问题属于营养分析，但暂时没有匹配菜谱作为依据。"
                 "回答时应说明只能提供一般饮食建议，不能替代医生或营养师建议。"
             )
+            state.meta["recipe_source"] = "llm_fallback_query"
+            state.meta["fallback_reason"] = "nutrition_rag_empty_after_preferences"
             return state
 
         recipes = []

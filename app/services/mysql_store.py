@@ -23,10 +23,12 @@ SCHEMA_STATEMENTS = [
       id BIGINT PRIMARY KEY AUTO_INCREMENT,
       name VARCHAR(128) NOT NULL UNIQUE,
       category VARCHAR(64),
-      cooking_time_text VARCHAR(64),
       cooking_time_minutes INT,
       difficulty VARCHAR(32),
-      calories INT,
+      calories_per_100g INT,
+      protein_g_per_100g DECIMAL(6,1),
+      fat_g_per_100g DECIMAL(6,1),
+      nutrition_estimated BOOLEAN NOT NULL DEFAULT TRUE,
       steps TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -49,54 +51,6 @@ SCHEMA_STATEMENTS = [
         FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
       CONSTRAINT fk_recipe_ingredients_ingredient
         FOREIGN KEY (ingredient_id) REFERENCES ingredients(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS recipe_tags (
-      recipe_id BIGINT NOT NULL,
-      tag VARCHAR(64) NOT NULL,
-      PRIMARY KEY (recipe_id, tag),
-      CONSTRAINT fk_recipe_tags_recipe
-        FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS recipe_suitable_for (
-      recipe_id BIGINT NOT NULL,
-      target VARCHAR(64) NOT NULL,
-      PRIMARY KEY (recipe_id, target),
-      CONSTRAINT fk_recipe_suitable_for_recipe
-        FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS user_profiles (
-      session_id VARCHAR(128) PRIMARY KEY,
-      preferences JSON,
-      allergies JSON,
-      dislikes JSON,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS chat_turns (
-      id BIGINT PRIMARY KEY AUTO_INCREMENT,
-      session_id VARCHAR(128) NOT NULL,
-      user_message TEXT NOT NULL,
-      assistant_message TEXT,
-      intent VARCHAR(64),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_chat_turns_session_created (session_id, created_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS eval_runs (
-      id BIGINT PRIMARY KEY AUTO_INCREMENT,
-      eval_type VARCHAR(64) NOT NULL,
-      backend VARCHAR(64),
-      metrics JSON NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_eval_runs_type_created (eval_type, created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """,
     """
@@ -200,7 +154,44 @@ class MySQLStore:
             with connection.cursor() as cursor:
                 for statement in SCHEMA_STATEMENTS:
                     cursor.execute(statement)
+                self._migrate_recipe_columns(cursor)
             connection.commit()
+
+    @staticmethod
+    def _migrate_recipe_columns(cursor) -> None:
+        """Keep one canonical time field and explicit per-100g nutrition columns."""
+        cursor.execute("SHOW COLUMNS FROM recipes")
+        columns = {str(row["Field"]) for row in cursor.fetchall()}
+        additions = {
+            "cooking_time_minutes": "INT NULL",
+            "calories_per_100g": "INT NULL",
+            "protein_g_per_100g": "DECIMAL(6,1) NULL",
+            "fat_g_per_100g": "DECIMAL(6,1) NULL",
+            "nutrition_estimated": "BOOLEAN NOT NULL DEFAULT TRUE",
+        }
+        for name, definition in additions.items():
+            if name not in columns:
+                cursor.execute(f"ALTER TABLE recipes ADD COLUMN `{name}` {definition}")
+                columns.add(name)
+        if "cooking_time_text" in columns:
+            cursor.execute(
+                """
+                UPDATE recipes
+                SET cooking_time_minutes = CAST(REGEXP_SUBSTR(cooking_time_text, '[0-9]+') AS UNSIGNED)
+                WHERE (cooking_time_minutes IS NULL OR cooking_time_minutes = 0)
+                  AND cooking_time_text REGEXP '[0-9]+'
+                """
+            )
+            cursor.execute("ALTER TABLE recipes DROP COLUMN cooking_time_text")
+        if "calories" in columns:
+            cursor.execute(
+                """
+                UPDATE recipes
+                SET calories_per_100g = calories
+                WHERE (calories_per_100g IS NULL OR calories_per_100g = 0) AND calories > 0
+                """
+            )
+            cursor.execute("ALTER TABLE recipes DROP COLUMN calories")
 
     def reset_recipe_tables(self) -> None:
         with self.connect(use_database=True) as connection:
@@ -208,8 +199,6 @@ class MySQLStore:
                 cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
                 for table in (
                     "recipe_ingredients",
-                    "recipe_tags",
-                    "recipe_suitable_for",
                     "ingredients",
                     "recipes",
                 ):
@@ -232,21 +221,15 @@ class MySQLStore:
             with connection.cursor() as cursor:
                 imported_recipes = 0
                 linked_ingredients = 0
-                linked_tags = 0
-                linked_targets = 0
                 for item in recipes:
                     recipe_id = self._upsert_recipe(cursor, item)
                     self._clear_recipe_links(cursor, recipe_id)
                     linked_ingredients += self._insert_ingredients(cursor, recipe_id, item.get("ingredients", []))
-                    linked_tags += self._insert_tags(cursor, recipe_id, item.get("tags", []))
-                    linked_targets += self._insert_targets(cursor, recipe_id, item.get("suitable_for", []))
                     imported_recipes += 1
             connection.commit()
         return {
             "recipes": imported_recipes,
             "recipe_ingredients": linked_ingredients,
-            "recipe_tags": linked_tags,
-            "recipe_suitable_for": linked_targets,
         }
 
     def import_document_index(
@@ -328,11 +311,6 @@ class MySQLStore:
             "recipes",
             "ingredients",
             "recipe_ingredients",
-            "recipe_tags",
-            "recipe_suitable_for",
-            "user_profiles",
-            "chat_turns",
-            "eval_runs",
             "document_indexes",
             "document_chunks",
         )
@@ -354,77 +332,35 @@ class MySQLStore:
                 logger.debug("mysql read query rows=%s", len(rows))
                 return rows
 
-    def upsert_user_preferences(
-        self,
-        session_id: str,
-        preferences: list[str],
-        allergies: list[str],
-        dislikes: list[str],
-    ) -> None:
-        self.ensure_schema()
-        with self.connect(use_database=True) as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    """
-                    INSERT INTO user_profiles (session_id, preferences, allergies, dislikes)
-                    VALUES (%s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE
-                      preferences = VALUES(preferences),
-                      allergies = VALUES(allergies),
-                      dislikes = VALUES(dislikes)
-                    """,
-                    (
-                        session_id,
-                        json.dumps(preferences, ensure_ascii=False),
-                        json.dumps(allergies, ensure_ascii=False),
-                        json.dumps(dislikes, ensure_ascii=False),
-                    ),
-                )
-            connection.commit()
-
-    def get_user_preferences(self, session_id: str) -> dict[str, list[str]] | None:
-        rows = self.read_query(
-            """
-            SELECT preferences, allergies, dislikes
-            FROM user_profiles
-            WHERE session_id = %s
-            LIMIT 1
-            """,
-            (session_id,),
-        )
-        if not rows:
-            return None
-        row = rows[0]
-        return {
-            "preferences": json.loads(row.get("preferences") or "[]"),
-            "allergies": json.loads(row.get("allergies") or "[]"),
-            "dislikes": json.loads(row.get("dislikes") or "[]"),
-        }
-
     @staticmethod
     def _upsert_recipe(cursor, item: dict[str, Any]) -> int:
         cursor.execute(
             """
             INSERT INTO recipes
-              (name, category, cooking_time_text, cooking_time_minutes, difficulty, calories, steps)
+              (name, category, cooking_time_minutes, difficulty, calories_per_100g,
+               protein_g_per_100g, fat_g_per_100g, nutrition_estimated, steps)
             VALUES
-              (%s, %s, %s, %s, %s, %s, %s)
+              (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
               id = LAST_INSERT_ID(id),
               category = VALUES(category),
-              cooking_time_text = VALUES(cooking_time_text),
               cooking_time_minutes = VALUES(cooking_time_minutes),
               difficulty = VALUES(difficulty),
-              calories = VALUES(calories),
+              calories_per_100g = VALUES(calories_per_100g),
+              protein_g_per_100g = VALUES(protein_g_per_100g),
+              fat_g_per_100g = VALUES(fat_g_per_100g),
+              nutrition_estimated = VALUES(nutrition_estimated),
               steps = VALUES(steps)
             """,
             (
                 item["name"],
                 item.get("category", ""),
-                item.get("cooking_time", ""),
-                parse_minutes(item.get("cooking_time", "")),
+                canonical_minutes(item),
                 item.get("difficulty", ""),
-                int(item.get("calories", 0)),
+                canonical_number(item, "calories_per_100g", "calories", integer=True),
+                canonical_number(item, "protein_g_per_100g"),
+                canonical_number(item, "fat_g_per_100g"),
+                bool(item.get("nutrition_estimated", True)),
                 item.get("steps", ""),
             ),
         )
@@ -433,8 +369,6 @@ class MySQLStore:
     @staticmethod
     def _clear_recipe_links(cursor, recipe_id: int) -> None:
         cursor.execute("DELETE FROM recipe_ingredients WHERE recipe_id = %s", (recipe_id,))
-        cursor.execute("DELETE FROM recipe_tags WHERE recipe_id = %s", (recipe_id,))
-        cursor.execute("DELETE FROM recipe_suitable_for WHERE recipe_id = %s", (recipe_id,))
 
     @staticmethod
     def _insert_ingredients(cursor, recipe_id: int, ingredients: list[str]) -> int:
@@ -463,48 +397,37 @@ class MySQLStore:
             count += 1
         return count
 
-    @staticmethod
-    def _insert_tags(cursor, recipe_id: int, tags: list[str]) -> int:
-        count = 0
-        for tag in tags:
-            name = tag.strip()
-            if not name:
-                continue
-            cursor.execute(
-                """
-                INSERT INTO recipe_tags (recipe_id, tag)
-                VALUES (%s, %s)
-                ON DUPLICATE KEY UPDATE tag = VALUES(tag)
-                """,
-                (recipe_id, name),
-            )
-            count += 1
-        return count
-
-    @staticmethod
-    def _insert_targets(cursor, recipe_id: int, targets: list[str]) -> int:
-        count = 0
-        for target in targets:
-            name = target.strip()
-            if not name:
-                continue
-            cursor.execute(
-                """
-                INSERT INTO recipe_suitable_for (recipe_id, target)
-                VALUES (%s, %s)
-                ON DUPLICATE KEY UPDATE target = VALUES(target)
-                """,
-                (recipe_id, name),
-            )
-            count += 1
-        return count
-
 
 def parse_minutes(text: str) -> int | None:
     match = TIME_RE.search(text)
     if not match:
         return None
     return int(match.group(1))
+
+
+def canonical_minutes(item: dict[str, Any]) -> int | None:
+    value = item.get("cooking_time_minutes")
+    try:
+        minutes = int(float(value or 0))
+    except (TypeError, ValueError):
+        minutes = 0
+    return minutes or parse_minutes(str(item.get("cooking_time") or ""))
+
+
+def canonical_number(
+    item: dict[str, Any],
+    key: str,
+    legacy_key: str | None = None,
+    integer: bool = False,
+) -> int | float:
+    value = item.get(key)
+    if (value is None or value == "") and legacy_key:
+        value = item.get(legacy_key)
+    try:
+        number = max(0.0, float(value or 0))
+    except (TypeError, ValueError):
+        number = 0.0
+    return int(round(number)) if integer else round(number, 1)
 
 
 def parse_bool(value: str) -> bool:

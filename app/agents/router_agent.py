@@ -4,6 +4,7 @@ import json
 import os
 import re
 
+from app.agents.recipe_agent import extract_recipe_detail_target, is_specific_dish_target
 from app.services.llm_client import LLMClient
 from app.services.logger import get_logger
 from app.state import AgentState
@@ -57,6 +58,7 @@ RECIPE_KEYWORDS = (
     "午餐",
     "鸡蛋",
     "番茄",
+    "西红柿",
     "西兰花",
     "鸡胸肉",
     "黄瓜",
@@ -68,6 +70,7 @@ RECIPE_KEYWORDS = (
     "汤",
     "粥",
     "空气炸锅",
+    "套餐",
     "家常",
     "素",
     "饱腹",
@@ -114,6 +117,19 @@ STRUCTURED_QUERY_KEYWORDS = ("最低", "最高", "以内", "平均", "排序", "
 RELATIONSHIP_QUERY_KEYWORDS = ("搭配", "一起", "同时", "关联", "关系", "包含", "相关", "约束")
 MULTI_SOURCE_QUERY_KEYWORDS = ("综合", "多源", "融合", "数据库和图谱", "一起查", "全面")
 TOOL_QUERY_KEYWORDS = ("偏好", "忌口", "过敏", "不吃", "之前", "上次", "历史", "根据我")
+KNOWN_DISH_NAMES = (
+    "西红柿炒鸡蛋",
+    "番茄炒鸡蛋",
+    "西红柿炒蛋",
+    "番茄炒蛋",
+    "番茄鸡蛋",
+    "鸡蛋羹",
+    "水蒸蛋",
+    "蒸鸡蛋",
+    "凉拌黄瓜",
+    "凉拌青瓜",
+)
+DISH_DESIRE_KEYWORDS = ("想吃", "要吃", "来一份", "来个", "吃")
 logger = get_logger("agents.router")
 
 
@@ -250,6 +266,9 @@ class RouterAgent:
         if any(keyword in text for keyword in REPLACE_KEYWORDS) and "有没有" not in text:
             return "ingredient_replace"
         if any(keyword in text for keyword in DETAIL_KEYWORDS):
+            return "recipe_detail"
+        requested_dish = extract_recipe_detail_target(text)
+        if requested_dish and is_specific_dish_target(requested_dish):
             return "recipe_detail"
         if any(keyword in text for keyword in OUT_OF_SCOPE_KEYWORDS) or any(keyword in text for keyword in CODE_KEYWORDS):
             return "out_of_scope"

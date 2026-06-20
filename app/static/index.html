@@ -48,7 +48,7 @@
     .shell {
       min-height: 100vh;
       display: grid;
-      grid-template-columns: 320px minmax(0, 1fr);
+      grid-template-columns: 280px minmax(0, 1fr);
     }
 
     .sidebar {
@@ -58,6 +58,8 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
+      min-width: 0;
+      height: 100vh;
     }
 
     .brand {
@@ -100,23 +102,6 @@
       font-size: 12px;
     }
 
-    .status-pill {
-      min-width: 74px;
-      text-align: center;
-      border-radius: 999px;
-      padding: 5px 9px;
-      font-size: 12px;
-      color: #0f5f49;
-      background: var(--accent-soft);
-      border: 1px solid #c5e8da;
-    }
-
-    .status-pill.offline {
-      color: var(--danger);
-      background: #fae8e4;
-      border-color: #efc7be;
-    }
-
     .panel {
       background: var(--surface);
       border: 1px solid var(--line);
@@ -138,6 +123,124 @@
       font-weight: 700;
       color: #314139;
     }
+
+    .new-chat {
+      width: 100%;
+      min-height: 42px;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--accent);
+      font-weight: 800;
+    }
+
+    .new-chat:hover { background: #12634d; }
+
+    .history-section {
+      min-height: 0;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .conversation-list {
+      min-height: 0;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      overflow-y: auto;
+    }
+
+    .conversation-entry {
+      position: relative;
+      overflow: visible;
+    }
+
+    .conversation-item {
+      width: 100%;
+      padding: 10px 42px 10px 10px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--ink);
+      text-align: left;
+      display: grid;
+      gap: 4px;
+    }
+
+    .conversation-item:hover { background: var(--surface-2); }
+
+    .conversation-item.active {
+      border-color: #b8d9cc;
+      background: var(--accent-soft);
+    }
+
+    .conversation-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .conversation-time, .session-label {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .conversation-more {
+      position: absolute;
+      top: 7px;
+      right: 6px;
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 20px;
+      line-height: 1;
+      display: grid;
+      place-items: center;
+    }
+
+    .conversation-more:hover,
+    .conversation-more[aria-expanded="true"] {
+      color: var(--ink);
+      background: #dfe9e3;
+    }
+
+    .conversation-menu {
+      position: fixed;
+      z-index: 1000;
+      min-width: 92px;
+      padding: 5px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+    }
+
+    .conversation-menu[hidden] { display: none; }
+
+    .conversation-delete {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      color: var(--danger);
+      background: transparent;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .conversation-delete:hover { background: #faece9; }
+
+    .sidebar-footer {
+      display: grid;
+      gap: 8px;
+    }
+
+    .sidebar-footer .link-btn { justify-content: center; }
 
     .field {
       display: grid;
@@ -170,81 +273,6 @@
       min-height: 104px;
       resize: vertical;
       line-height: 1.55;
-    }
-
-    .segmented {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 4px;
-      padding: 4px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--surface-2);
-    }
-
-    .segmented button {
-      min-height: 34px;
-      border-radius: 6px;
-      color: var(--muted);
-      background: transparent;
-      font-weight: 700;
-    }
-
-    .segmented button.active {
-      color: #fff;
-      background: var(--accent);
-    }
-
-    .examples {
-      display: grid;
-      gap: 7px;
-    }
-
-    .example {
-      width: 100%;
-      min-height: 36px;
-      border: 1px solid var(--line);
-      border-radius: 7px;
-      background: #fff;
-      color: #26352d;
-      text-align: left;
-      padding: 8px 10px;
-      line-height: 1.35;
-    }
-
-    .example:hover {
-      border-color: #a9cfc0;
-      background: #f7fbf9;
-    }
-
-    .health-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
-    .metric {
-      border: 1px solid var(--line);
-      border-radius: 7px;
-      padding: 9px;
-      background: #fff;
-      min-width: 0;
-    }
-
-    .metric span {
-      display: block;
-      color: var(--muted);
-      font-size: 11px;
-      margin-bottom: 3px;
-    }
-
-    .metric strong {
-      display: block;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 13px;
-      font-weight: 700;
     }
 
     .main {
@@ -431,9 +459,40 @@
 
     .composer-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: 44px minmax(0, 1fr) auto;
       gap: 10px;
       align-items: end;
+    }
+
+    .attach-image {
+      width: 44px;
+      height: 44px;
+      margin-bottom: 7px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      color: var(--accent);
+      font-size: 26px;
+      line-height: 1;
+      display: grid;
+      place-items: center;
+    }
+
+    .attach-image:hover {
+      border-color: #a9cfc0;
+      background: var(--accent-soft);
+    }
+
+    .file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     .composer textarea {
@@ -454,17 +513,6 @@
       background: #12634d;
     }
 
-    .image-tools {
-      display: none;
-      grid-template-columns: 1fr;
-      gap: 8px;
-      margin-bottom: 10px;
-    }
-
-    .image-mode .image-tools {
-      display: grid;
-    }
-
     .preview {
       display: none;
       align-items: center;
@@ -473,6 +521,7 @@
       border: 1px solid var(--line);
       border-radius: 8px;
       background: #f8fbf9;
+      margin-bottom: 10px;
     }
 
     .preview.active {
@@ -488,11 +537,23 @@
     }
 
     .preview span {
+      min-width: 0;
+      flex: 1;
       font-size: 12px;
       color: var(--muted);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .remove-image {
+      flex: 0 0 auto;
+      padding: 6px 9px;
+      border-radius: 7px;
+      color: var(--danger);
+      background: #fff;
+      border: 1px solid var(--line);
+      font-size: 12px;
     }
 
     .error {
@@ -508,14 +569,24 @@
       .shell {
         grid-template-columns: 1fr;
       }
+      .main {
+        height: calc(100vh - 220px);
+      }
       .sidebar {
+        height: 220px;
         border-right: 0;
         border-bottom: 1px solid var(--line);
       }
-      .main {
-        height: auto;
-        min-height: 72vh;
+      .brand { align-items: flex-start; }
+      .history-section { min-height: 76px; }
+      .conversation-list {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(180px, 240px);
+        overflow-x: auto;
+        overflow-y: hidden;
       }
+      .sidebar-footer { display: none; }
       .conversation {
         min-height: 520px;
       }
@@ -527,14 +598,15 @@
         padding-right: 12px;
       }
       .composer-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 40px minmax(0, 1fr) auto;
       }
       .send {
-        width: 100%;
+        width: auto;
         min-height: 44px;
       }
-      .health-grid {
-        grid-template-columns: 1fr;
+      .attach-image {
+        width: 40px;
+        height: 40px;
       }
       .topbar {
         align-items: flex-start;
@@ -548,75 +620,34 @@
 </head>
 <body>
   <div class="shell" id="appShell">
-    <aside class="sidebar">
+    <aside class="sidebar" aria-label="对话记录">
       <div class="brand">
         <div class="brand-main">
           <div class="mark" aria-hidden="true">SR</div>
           <div>
             <h1>SmartRecipe</h1>
-            <p class="subtitle">多智能体菜谱助手</p>
-          </div>
-        </div>
-        <div class="status-pill" id="statusPill">检查中</div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-body">
-          <div class="section-title">对话设置</div>
-          <div class="segmented" role="tablist" aria-label="输入模式">
-            <button class="active" id="textMode" type="button">文本</button>
-            <button id="imageMode" type="button">图片</button>
-          </div>
-          <div class="field">
-            <label for="sessionId">Session ID</label>
-            <input id="sessionId" value="demo-user" autocomplete="off">
-          </div>
-          <div class="field">
-            <label for="topK">返回菜谱数</label>
-            <select id="topK">
-              <option value="3" selected>3</option>
-              <option value="1">1</option>
-              <option value="5">5</option>
-            </select>
+            <p class="subtitle">每个对话独立记忆</p>
           </div>
         </div>
       </div>
-
-      <div class="panel">
-        <div class="panel-body">
-          <div class="section-title">服务状态</div>
-          <div class="health-grid" id="healthGrid">
-            <div class="metric"><span>状态</span><strong>检查中</strong></div>
-            <div class="metric"><span>检索</span><strong>-</strong></div>
-            <div class="metric"><span>记忆</span><strong>-</strong></div>
-            <div class="metric"><span>数据库 Agent</span><strong>-</strong></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-body">
-          <div class="section-title">示例问题</div>
-          <div class="examples">
-            <button class="example" type="button">推荐低脂高蛋白晚餐，家里有鸡胸肉和西兰花</button>
-            <button class="example" type="button">老醋花生米怎么做？</button>
-            <button class="example" type="button">我不吃香菜，对虾过敏，以后推荐时记住</button>
-            <button class="example" type="button">热量最低的五道菜是什么？</button>
-            <button class="example" type="button">鸡胸肉通常和哪些食材搭配？</button>
-          </div>
-        </div>
+      <button class="new-chat" id="newChat" type="button">＋ 新建对话</button>
+      <section class="history-section">
+        <div class="section-title"><span>对话记录</span><span id="conversationCount">0</span></div>
+        <div class="conversation-list" id="conversationList"></div>
+      </section>
+      <div class="sidebar-footer">
+        <a class="link-btn" href="/ui/database.html" target="_blank" rel="noreferrer">数据库预览</a>
+        <span class="session-label">记录保存在当前浏览器</span>
       </div>
     </aside>
-
     <main class="main">
       <header class="topbar">
         <div>
-          <h2>智能问答工作台</h2>
-          <p class="subtitle">文本问答、图片识别、RAG/SQL/Neo4j 多源结果统一展示</p>
+          <h2 id="activeConversationTitle">新对话</h2>
+          <p class="subtitle" id="activeSessionLabel">Session：-</p>
         </div>
         <div class="top-actions">
-          <a class="link-btn" href="/ui/database.html" target="_blank" rel="noreferrer">数据库预览</a>
-          <button class="icon-btn" id="clearChat" type="button">清空对话</button>
+          <button class="icon-btn" id="clearChat" type="button">删除当前对话</button>
         </div>
       </header>
 
@@ -628,18 +659,16 @@
       </section>
 
       <form class="composer" id="composer">
-        <div class="image-tools">
-          <div class="field">
-            <label for="imageFile">菜品图片</label>
-            <input id="imageFile" type="file" accept="image/*">
-          </div>
-          <div class="preview" id="imagePreview">
-            <img id="previewImage" alt="图片预览">
-            <span id="previewName"></span>
-          </div>
+        <input id="sessionId" type="hidden">
+        <input class="file-input" id="imageFile" type="file" accept="image/*">
+        <div class="preview" id="imagePreview">
+          <img id="previewImage" alt="图片预览">
+          <span id="previewName"></span>
+          <button class="remove-image" id="removeImage" type="button">移除</button>
         </div>
         <div class="composer-grid">
-          <textarea id="message" placeholder="输入问题，例如：推荐低脂高蛋白晚餐"></textarea>
+          <button class="attach-image" id="attachImage" type="button" aria-label="上传图片" title="上传图片">＋</button>
+          <textarea id="message" placeholder="输入问题，回车发送；也可以点击加号上传图片"></textarea>
           <button class="send" id="sendButton" type="submit">发送</button>
         </div>
       </form>
@@ -647,115 +676,105 @@
   </div>
 
   <script>
-    const shell = document.querySelector("#appShell");
     const conversation = document.querySelector("#conversation");
     const emptyState = document.querySelector("#emptyState");
     const messageInput = document.querySelector("#message");
     const sessionInput = document.querySelector("#sessionId");
-    const topKInput = document.querySelector("#topK");
     const sendButton = document.querySelector("#sendButton");
-    const textMode = document.querySelector("#textMode");
-    const imageMode = document.querySelector("#imageMode");
     const imageFile = document.querySelector("#imageFile");
+    const attachImageButton = document.querySelector("#attachImage");
+    const removeImageButton = document.querySelector("#removeImage");
     const imagePreview = document.querySelector("#imagePreview");
     const previewImage = document.querySelector("#previewImage");
     const previewName = document.querySelector("#previewName");
-    const statusPill = document.querySelector("#statusPill");
-    const healthGrid = document.querySelector("#healthGrid");
+    const conversationList = document.querySelector("#conversationList");
+    const conversationCount = document.querySelector("#conversationCount");
+    const activeConversationTitle = document.querySelector("#activeConversationTitle");
+    const activeSessionLabel = document.querySelector("#activeSessionLabel");
+    const newChatButton = document.querySelector("#newChat");
+    const deleteChatButton = document.querySelector("#clearChat");
 
-    let mode = "text";
+    const storageKey = "smartrecipe.conversations.v1";
+    const activeStorageKey = "smartrecipe.activeConversation.v1";
+    const defaultTopK = 1;
     let pending = false;
+    let conversations = loadConversations();
+    let activeConversationId = loadActiveConversationId();
 
-    const defaults = {
-      text: "推荐低脂高蛋白晚餐，家里有鸡胸肉和西兰花",
-      image: "这是什么菜？请先识别，再推荐类似做法。"
-    };
-
-    messageInput.value = defaults.text;
-
-    function setMode(next) {
-      mode = next;
-      const isImage = mode === "image";
-      shell.classList.toggle("image-mode", isImage);
-      textMode.classList.toggle("active", !isImage);
-      imageMode.classList.toggle("active", isImage);
-      if (!messageInput.value.trim() || messageInput.value === defaults.text || messageInput.value === defaults.image) {
-        messageInput.value = isImage ? defaults.image : defaults.text;
-      }
-      messageInput.focus();
+    if (!conversations.some((item) => item.id === activeConversationId)) {
+      activeConversationId = conversations[0]?.id || "";
     }
+    if (!activeConversationId) createConversation(false);
+    selectConversation(activeConversationId);
 
-    textMode.addEventListener("click", () => setMode("text"));
-    imageMode.addEventListener("click", () => setMode("image"));
+    attachImageButton.addEventListener("click", () => imageFile.click());
+    removeImageButton.addEventListener("click", resetImageInput);
 
-    document.querySelector("#clearChat").addEventListener("click", () => {
-      conversation.innerHTML = "";
-      conversation.appendChild(emptyState);
-      emptyState.hidden = false;
+    newChatButton.addEventListener("click", () => {
+      if (!pending) createConversation(true);
     });
 
-    document.querySelectorAll(".example").forEach((button) => {
-      button.addEventListener("click", () => {
-        setMode("text");
-        messageInput.value = button.textContent.trim();
-        messageInput.focus();
-      });
+    document.addEventListener("click", closeConversationMenus);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeConversationMenus();
     });
+
+    deleteChatButton.addEventListener("click", () => deleteConversation(activeConversationId));
+
+    function deleteConversation(id) {
+      if (pending) return;
+      const target = conversations.find((item) => item.id === id);
+      if (!target || !window.confirm(`删除对话“${target.title}”？后端中已经形成的会话记忆不会转移到其他对话。`)) return;
+      conversations = conversations.filter((item) => item.id !== id);
+      if (!conversations.length) {
+        activeConversationId = "";
+        createConversation(false);
+      } else if (activeConversationId === id) {
+        activeConversationId = sortedConversations()[0].id;
+      } else {
+        saveConversations();
+        renderConversationList();
+        return;
+      }
+      saveConversations();
+      selectConversation(activeConversationId);
+    }
 
     imageFile.addEventListener("change", () => {
       const file = imageFile.files[0];
       if (!file) {
-        imagePreview.classList.remove("active");
+        resetImageInput();
         return;
       }
       previewImage.src = URL.createObjectURL(file);
       previewName.textContent = `${file.name} · ${Math.round(file.size / 1024)} KB`;
       imagePreview.classList.add("active");
+      messageInput.placeholder = "可补充图片问题；留空发送则默认识别菜品";
+      messageInput.focus();
     });
-
-    async function loadHealth() {
-      try {
-        const data = await fetchJson("/health");
-        statusPill.textContent = "在线";
-        statusPill.classList.remove("offline");
-        healthGrid.innerHTML = `
-          <div class="metric"><span>状态</span><strong>${escapeHtml(data.status || "-")}</strong></div>
-          <div class="metric"><span>检索</span><strong>${escapeHtml(data.retriever || "-")}</strong></div>
-          <div class="metric"><span>记忆</span><strong>${escapeHtml(data.memory || "-")}</strong></div>
-          <div class="metric"><span>数据库 Agent</span><strong>${escapeHtml(data.enable_database_agents || "-")}</strong></div>
-        `;
-      } catch (error) {
-        statusPill.textContent = "离线";
-        statusPill.classList.add("offline");
-        healthGrid.innerHTML = `
-          <div class="metric"><span>状态</span><strong>不可用</strong></div>
-          <div class="metric"><span>检索</span><strong>-</strong></div>
-          <div class="metric"><span>记忆</span><strong>-</strong></div>
-          <div class="metric"><span>数据库 Agent</span><strong>-</strong></div>
-        `;
-      }
-    }
 
     document.querySelector("#composer").addEventListener("submit", async (event) => {
       event.preventDefault();
       if (pending) return;
-      const text = messageInput.value.trim();
-      if (!text) return;
-      if (mode === "image" && !imageFile.files[0]) {
-        appendAssistant({ answer: "请先选择一张菜品图片。", error: true });
-        return;
+      let text = messageInput.value.trim();
+      const selectedImage = imageFile.files[0] || null;
+      if (!text && selectedImage) {
+        text = "这是什么菜？";
       }
+      if (!text) return;
 
-      appendUser(text, mode === "image" ? imageFile.files[0] : null);
+      appendUser(text, selectedImage, true);
+      messageInput.value = "";
+      resetImageInput();
       setPending(true);
       const typing = appendTyping();
       try {
-        const data = mode === "image" ? await submitImage(text) : await submitText(text);
+        const data = selectedImage ? await submitImage(text, selectedImage) : await submitText(text);
         typing.remove();
-        appendAssistant(data);
+        appendAssistant(data, true);
       } catch (error) {
         typing.remove();
-        appendAssistant({ answer: `请求失败：${error.message}`, error: true });
+        appendAssistant({ answer: `请求失败：${error.message}`, error: true }, true);
       } finally {
         setPending(false);
       }
@@ -767,18 +786,18 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
-          session_id: sessionInput.value.trim() || "demo-user",
-          top_k: Number(topKInput.value)
+          session_id: sessionInput.value.trim(),
+          top_k: defaultTopK
         })
       });
     }
 
-    async function submitImage(text) {
+    async function submitImage(text, file) {
       const form = new FormData();
-      form.append("image", imageFile.files[0]);
+      form.append("image", file);
       form.append("message", text);
-      form.append("session_id", sessionInput.value.trim() || "demo-user");
-      form.append("top_k", topKInput.value);
+      form.append("session_id", sessionInput.value.trim());
+      form.append("top_k", String(defaultTopK));
       return fetchJson("/chat/image", { method: "POST", body: form });
     }
 
@@ -797,7 +816,7 @@
       return data;
     }
 
-    function appendUser(text, file) {
+    function appendUser(text, file, persist = false) {
       emptyState.hidden = true;
       const item = document.createElement("article");
       item.className = "message user";
@@ -805,13 +824,22 @@
       bubble.className = "bubble";
       bubble.textContent = text;
       item.appendChild(bubble);
-      if (file) {
+      const fileName = typeof file === "string" ? file : file?.name;
+      if (fileName) {
         const meta = document.createElement("div");
         meta.className = "meta-row";
-        meta.innerHTML = `<span class="tag">图片：${escapeHtml(file.name)}</span>`;
+        meta.innerHTML = `<span class="tag">图片：${escapeHtml(fileName)}</span>`;
         item.appendChild(meta);
       }
       conversation.appendChild(item);
+      if (persist) {
+        const current = activeConversation();
+        current.messages.push({ role: "user", text, fileName: fileName || "" });
+        if (current.messages.filter((message) => message.role === "user").length === 1) {
+          current.title = makeConversationTitle(text);
+        }
+        touchAndSave(current);
+      }
       scrollToBottom();
     }
 
@@ -825,7 +853,7 @@
       return item;
     }
 
-    function appendAssistant(data) {
+    function appendAssistant(data, persist = false) {
       emptyState.hidden = true;
       const item = document.createElement("article");
       item.className = "message assistant";
@@ -854,7 +882,202 @@
       }
 
       conversation.appendChild(item);
+      if (persist) {
+        const current = activeConversation();
+        current.messages.push({ role: "assistant", data: compactAssistantData(data) });
+        touchAndSave(current);
+      }
       scrollToBottom();
+    }
+
+    function createConversation(select = true) {
+      const now = new Date().toISOString();
+      const id = createId();
+      const item = {
+        id,
+        sessionId: `chat-${id}`,
+        title: "新对话",
+        createdAt: now,
+        updatedAt: now,
+        messages: []
+      };
+      conversations.push(item);
+      activeConversationId = id;
+      saveConversations();
+      if (select) selectConversation(id);
+      return item;
+    }
+
+    function selectConversation(id) {
+      const target = conversations.find((item) => item.id === id);
+      if (!target || pending) return;
+      activeConversationId = target.id;
+      saveConversations();
+      sessionInput.value = target.sessionId;
+      activeConversationTitle.textContent = target.title;
+      activeSessionLabel.textContent = `Session：${target.sessionId}`;
+      resetImageInput();
+      renderConversationList();
+      renderActiveConversation();
+      messageInput.focus();
+    }
+
+    function renderActiveConversation() {
+      const current = activeConversation();
+      conversation.innerHTML = "";
+      conversation.appendChild(emptyState);
+      emptyState.hidden = Boolean(current.messages.length);
+      for (const message of current.messages) {
+        if (message.role === "user") {
+          appendUser(message.text || "", message.fileName || "", false);
+        } else if (message.role === "assistant") {
+          appendAssistant(message.data || { answer: "没有返回内容。" }, false);
+        }
+      }
+      scrollToBottom();
+    }
+
+    function renderConversationList() {
+      conversationList.innerHTML = "";
+      const items = sortedConversations();
+      conversationCount.textContent = String(items.length);
+      for (const item of items) {
+        const entry = document.createElement("div");
+        entry.className = "conversation-entry";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `conversation-item${item.id === activeConversationId ? " active" : ""}`;
+        button.dataset.conversationId = item.id;
+        const title = document.createElement("span");
+        title.className = "conversation-title";
+        title.textContent = item.title;
+        const time = document.createElement("span");
+        time.className = "conversation-time";
+        time.textContent = formatConversationTime(item.updatedAt);
+        button.append(title, time);
+        button.addEventListener("click", () => selectConversation(item.id));
+
+        const moreButton = document.createElement("button");
+        moreButton.type = "button";
+        moreButton.className = "conversation-more";
+        moreButton.textContent = "⋯";
+        moreButton.setAttribute("aria-label", `打开“${item.title}”操作菜单`);
+        moreButton.setAttribute("aria-expanded", "false");
+
+        const menu = document.createElement("div");
+        menu.className = "conversation-menu";
+        menu.hidden = true;
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "conversation-delete";
+        removeButton.textContent = "删除";
+
+        moreButton.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const willOpen = menu.hidden;
+          closeConversationMenus();
+          if (willOpen) {
+            const rect = moreButton.getBoundingClientRect();
+            menu.style.top = (rect.bottom + 4) + "px";
+            menu.style.right = "auto";
+            menu.style.left = (rect.right - 92) + "px";
+          }
+          menu.hidden = !willOpen;
+          moreButton.setAttribute("aria-expanded", String(willOpen));
+        });
+        removeButton.addEventListener("click", (event) => {
+          event.stopPropagation();
+          deleteConversation(item.id);
+        });
+        menu.appendChild(removeButton);
+        entry.append(button, moreButton, menu);
+        conversationList.appendChild(entry);
+      }
+    }
+
+    function closeConversationMenus() {
+      for (const menu of conversationList.querySelectorAll(".conversation-menu")) menu.hidden = true;
+      for (const button of conversationList.querySelectorAll(".conversation-more")) {
+        button.setAttribute("aria-expanded", "false");
+      }
+    }
+
+    function activeConversation() {
+      return conversations.find((item) => item.id === activeConversationId);
+    }
+
+    function touchAndSave(item) {
+      item.updatedAt = new Date().toISOString();
+      activeConversationTitle.textContent = item.title;
+      saveConversations();
+      renderConversationList();
+    }
+
+    function sortedConversations() {
+      return [...conversations].sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)));
+    }
+
+    function loadConversations() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(storageKey) || "[]");
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((item) => item && item.id && item.sessionId && Array.isArray(item.messages));
+      } catch {
+        return [];
+      }
+    }
+
+    function saveConversations() {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(conversations));
+        if (activeConversationId) localStorage.setItem(activeStorageKey, activeConversationId);
+      } catch (error) {
+        console.warn("无法保存本地对话记录", error);
+      }
+    }
+
+    function loadActiveConversationId() {
+      try {
+        return localStorage.getItem(activeStorageKey) || "";
+      } catch {
+        return "";
+      }
+    }
+
+    function compactAssistantData(data) {
+      return {
+        answer: data.answer || "没有返回内容。",
+        error: Boolean(data.error),
+        intent: data.intent || "",
+        agent: data.agent || "",
+        session_id: data.session_id || sessionInput.value,
+        recipes: Array.isArray(data.recipes) ? data.recipes : [],
+        meta: data.meta && typeof data.meta === "object" ? data.meta : {}
+      };
+    }
+
+    function makeConversationTitle(text) {
+      const normalized = text.replace(/\s+/g, " ").trim();
+      return normalized.length > 18 ? `${normalized.slice(0, 18)}…` : normalized || "新对话";
+    }
+
+    function formatConversationTime(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
+    }
+
+    function createId() {
+      if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+      return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function resetImageInput() {
+      imageFile.value = "";
+      imagePreview.classList.remove("active");
+      previewImage.removeAttribute("src");
+      previewName.textContent = "";
+      messageInput.placeholder = "输入问题，回车发送；也可以点击加号上传图片";
     }
 
     function renderRecipes(recipes) {
@@ -880,8 +1103,19 @@
     function setPending(value) {
       pending = value;
       sendButton.disabled = value;
+      newChatButton.disabled = value;
+      deleteChatButton.disabled = value;
+      attachImageButton.disabled = value;
+      imageFile.disabled = value;
       sendButton.textContent = value ? "处理中" : "发送";
     }
+
+    messageInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        document.querySelector("#composer").requestSubmit();
+      }
+    });
 
     function scrollToBottom() {
       conversation.scrollTop = conversation.scrollHeight;
@@ -895,8 +1129,6 @@
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
     }
-
-    loadHealth();
   </script>
 </body>
 </html>

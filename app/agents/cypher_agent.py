@@ -38,6 +38,8 @@ class CypherAgent:
         if plan is None:
             state.agent_output = "Cypher Agent 暂时只支持食材搭配、目标推荐、标签/约束关系查询。"
             state.meta["cypher_status"] = "unsupported"
+            state.meta["recipe_source"] = "llm_fallback_query"
+            state.meta["fallback_reason"] = "cypher_rule_unsupported"
             return state
 
         cypher = ensure_limit(plan["cypher"], max(state.top_k, 5))
@@ -49,12 +51,17 @@ class CypherAgent:
             state.agent_output = f"Cypher Agent 查询失败：{type(exc).__name__}: {exc}"
             state.meta["cypher_status"] = "failed"
             state.meta["cypher_query"] = cypher
+            state.meta["recipe_source"] = "llm_fallback_query"
+            state.meta["fallback_reason"] = "cypher_failed"
             return state
 
         state.agent_output = format_cypher_answer(rows, plan["title"])
-        state.meta["cypher_status"] = "ok"
+        state.meta["cypher_status"] = "ok" if rows else "empty"
         state.meta["cypher_query"] = cypher
         state.meta["cypher_rows"] = rows
+        if not rows:
+            state.meta["recipe_source"] = "llm_fallback_query"
+            state.meta["fallback_reason"] = "cypher_empty"
         logger.info("Cypher 查询成功 行数=%s 模式=%s", len(rows), state.meta.get("cypher_query_mode", "rule"))
         return state
 
@@ -89,7 +96,8 @@ class CypherAgent:
 def build_cypher_prompt(message: str, top_k: int) -> str:
     return (
         "你是 SmartRecipe 的 Text2Cypher 生成器。只允许为 Neo4j 生成只读 MATCH/OPTIONAL MATCH 查询。\n"
-        "图谱节点：Recipe(name,category,calories,difficulty,cooking_time)、Ingredient(name)、Tag(name)、"
+        "图谱节点：Recipe(name,category,cooking_time_minutes,difficulty,calories_per_100g,"
+        "protein_g_per_100g,fat_g_per_100g,nutrition_estimated)、Ingredient(name)、Tag(name)、"
         "Constraint(name)、Goal(name)、MealTime(name)。关系：USES、HAS_TAG、MATCHES、SUITABLE_FOR。\n"
         "不要生成 CREATE/MERGE/SET/DELETE/DETACH/REMOVE/DROP/CALL dbms。参数使用 $name。\n"
         "返回紧凑 JSON，不要 markdown："
@@ -142,8 +150,11 @@ def build_cypher_plan(message: str, top_k: int) -> dict[str, Any] | None:
             "cypher": """
             MATCH (recipe:Recipe)-[:USES]->(:Ingredient {name: $left})
             MATCH (recipe)-[:USES]->(:Ingredient {name: $right})
-            RETURN recipe.name AS name, recipe.category AS category, recipe.calories AS calories
-            ORDER BY recipe.calories ASC
+            RETURN recipe.name AS name, recipe.category AS category,
+                   recipe.calories_per_100g AS calories,
+                   recipe.protein_g_per_100g AS protein_g_per_100g,
+                   recipe.fat_g_per_100g AS fat_g_per_100g
+            ORDER BY recipe.calories_per_100g ASC
             """,
             "params": {"left": left, "right": right},
         }
@@ -169,8 +180,11 @@ def build_cypher_plan(message: str, top_k: int) -> dict[str, Any] | None:
             "cypher": f"""
             MATCH (recipe:Recipe)-[:USES]->(:Ingredient {{name: $ingredient}})
             MATCH (recipe)-[:{edge}]->(:{relation} {{name: $target}})
-            RETURN recipe.name AS name, recipe.category AS category, recipe.calories AS calories
-            ORDER BY recipe.calories ASC
+            RETURN recipe.name AS name, recipe.category AS category,
+                   recipe.calories_per_100g AS calories,
+                   recipe.protein_g_per_100g AS protein_g_per_100g,
+                   recipe.fat_g_per_100g AS fat_g_per_100g
+            ORDER BY recipe.calories_per_100g ASC
             """,
             "params": {"ingredient": ingredient, "target": target},
         }
@@ -181,8 +195,11 @@ def build_cypher_plan(message: str, top_k: int) -> dict[str, Any] | None:
             "cypher": """
             MATCH (recipe:Recipe)-[:SUITABLE_FOR]->(:Goal {name: $goal})
             MATCH (recipe)-[:MATCHES]->(:Constraint {name: $constraint})
-            RETURN recipe.name AS name, recipe.category AS category, recipe.calories AS calories
-            ORDER BY recipe.calories ASC
+            RETURN recipe.name AS name, recipe.category AS category,
+                   recipe.calories_per_100g AS calories,
+                   recipe.protein_g_per_100g AS protein_g_per_100g,
+                   recipe.fat_g_per_100g AS fat_g_per_100g
+            ORDER BY recipe.calories_per_100g ASC
             """,
             "params": {"goal": goal, "constraint": constraint},
         }
@@ -192,8 +209,11 @@ def build_cypher_plan(message: str, top_k: int) -> dict[str, Any] | None:
             "title": f"适合{goal}的菜谱",
             "cypher": """
             MATCH (recipe:Recipe)-[:SUITABLE_FOR]->(:Goal {name: $goal})
-            RETURN recipe.name AS name, recipe.category AS category, recipe.calories AS calories
-            ORDER BY recipe.calories ASC
+            RETURN recipe.name AS name, recipe.category AS category,
+                   recipe.calories_per_100g AS calories,
+                   recipe.protein_g_per_100g AS protein_g_per_100g,
+                   recipe.fat_g_per_100g AS fat_g_per_100g
+            ORDER BY recipe.calories_per_100g ASC
             """,
             "params": {"goal": goal},
         }
@@ -203,8 +223,11 @@ def build_cypher_plan(message: str, top_k: int) -> dict[str, Any] | None:
             "title": f"匹配{constraint}约束的菜谱",
             "cypher": """
             MATCH (recipe:Recipe)-[:MATCHES]->(:Constraint {name: $constraint})
-            RETURN recipe.name AS name, recipe.category AS category, recipe.calories AS calories
-            ORDER BY recipe.calories ASC
+            RETURN recipe.name AS name, recipe.category AS category,
+                   recipe.calories_per_100g AS calories,
+                   recipe.protein_g_per_100g AS protein_g_per_100g,
+                   recipe.fat_g_per_100g AS fat_g_per_100g
+            ORDER BY recipe.calories_per_100g ASC
             """,
             "params": {"constraint": constraint},
         }
@@ -214,8 +237,11 @@ def build_cypher_plan(message: str, top_k: int) -> dict[str, Any] | None:
             "title": f"包含{ingredient}的菜谱",
             "cypher": """
             MATCH (recipe:Recipe)-[:USES]->(:Ingredient {name: $ingredient})
-            RETURN recipe.name AS name, recipe.category AS category, recipe.calories AS calories
-            ORDER BY recipe.calories ASC
+            RETURN recipe.name AS name, recipe.category AS category,
+                   recipe.calories_per_100g AS calories,
+                   recipe.protein_g_per_100g AS protein_g_per_100g,
+                   recipe.fat_g_per_100g AS fat_g_per_100g
+            ORDER BY recipe.calories_per_100g ASC
             """,
             "params": {"ingredient": ingredient},
         }
@@ -246,7 +272,7 @@ def format_cypher_answer(rows: list[dict[str, Any]], title: str) -> str:
             lines.append(f"{index}. {row['relation']} -> {row['label']}：{row['name']}。")
         else:
             lines.append(
-                f"{index}. {row['name']}：{row.get('category') or '未分类'}，约{row.get('calories')}千卡。"
+                f"{index}. {row['name']}：{row.get('category') or '未分类'}，约{row.get('calories')} kcal/100g。"
             )
     return "\n".join(lines)
 

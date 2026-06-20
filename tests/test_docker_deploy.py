@@ -30,13 +30,12 @@ def test_mysql_init_sql_contains_schema_tables() -> None:
         "recipes",
         "ingredients",
         "recipe_ingredients",
-        "recipe_tags",
-        "recipe_suitable_for",
-        "user_profiles",
-        "chat_turns",
-        "eval_runs",
+        "document_indexes",
+        "document_chunks",
     ):
         assert f"create table if not exists {table}" in init_sql
+    for removed_table in ("recipe_tags", "recipe_suitable_for", "user_profiles", "chat_turns", "eval_runs"):
+        assert f"create table if not exists {removed_table}" not in init_sql
 
 
 def test_gitignore_excludes_sensitive_and_generated_paths() -> None:

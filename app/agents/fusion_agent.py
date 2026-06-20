@@ -51,6 +51,9 @@ class FusionAgent:
         state.meta["fusion_sources"] = {source: len(rows) for source, rows in source_results.items()}
         state.meta["fusion_status"] = "ok" if fused else "empty"
         state.agent_output = format_fusion_answer(fused)
+        if not fused:
+            state.meta["recipe_source"] = "llm_fallback_query"
+            state.meta["fallback_reason"] = "fusion_empty"
         logger.info("融合完成 状态=%s 结果数=%s", state.meta["fusion_status"], len(fused))
         return state
 

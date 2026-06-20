@@ -85,35 +85,35 @@ class Neo4jStore:
         UNWIND $recipes AS item
         MERGE (recipe:Recipe {name: item.name})
         SET recipe.category = item.category,
-            recipe.cooking_time = item.cooking_time,
+            recipe.cooking_time_minutes = item.cooking_time_minutes,
             recipe.difficulty = item.difficulty,
-            recipe.calories = item.calories,
+            recipe.calories_per_100g = item.calories_per_100g,
+            recipe.protein_g_per_100g = item.protein_g_per_100g,
+            recipe.fat_g_per_100g = item.fat_g_per_100g,
+            recipe.nutrition_estimated = item.nutrition_estimated,
             recipe.steps = item.steps
+        REMOVE recipe.cooking_time, recipe.calories
 
-        WITH recipe, item
-        UNWIND item.ingredients AS ingredient_name
-        MERGE (ingredient:Ingredient {name: ingredient_name})
-        MERGE (recipe)-[:USES]->(ingredient)
-
-        WITH recipe, item
-        UNWIND item.tags AS tag_name
-        MERGE (tag:Tag {name: tag_name})
-        MERGE (recipe)-[:HAS_TAG]->(tag)
-
-        WITH recipe, item
-        UNWIND item.constraints AS constraint_name
-        MERGE (constraint:Constraint {name: constraint_name})
-        MERGE (recipe)-[:MATCHES]->(constraint)
-
-        WITH recipe, item
-        UNWIND item.goals AS goal_name
-        MERGE (goal:Goal {name: goal_name})
-        MERGE (recipe)-[:SUITABLE_FOR]->(goal)
-
-        WITH recipe, item
-        UNWIND item.meal_times AS meal_name
-        MERGE (meal:MealTime {name: meal_name})
-        MERGE (recipe)-[:SUITABLE_FOR]->(meal)
+        FOREACH (ingredient_name IN item.ingredients |
+          MERGE (ingredient:Ingredient {name: ingredient_name})
+          MERGE (recipe)-[:USES]->(ingredient)
+        )
+        FOREACH (tag_name IN item.tags |
+          MERGE (tag:Tag {name: tag_name})
+          MERGE (recipe)-[:HAS_TAG]->(tag)
+        )
+        FOREACH (constraint_name IN item.constraints |
+          MERGE (constraint:Constraint {name: constraint_name})
+          MERGE (recipe)-[:MATCHES]->(constraint)
+        )
+        FOREACH (goal_name IN item.goals |
+          MERGE (goal:Goal {name: goal_name})
+          MERGE (recipe)-[:SUITABLE_FOR]->(goal)
+        )
+        FOREACH (meal_name IN item.meal_times |
+          MERGE (meal:MealTime {name: meal_name})
+          MERGE (recipe)-[:SUITABLE_FOR]->(meal)
+        )
         """
         self.execute_write(query, {"recipes": graph_rows})
         return graph_counts_from_rows(graph_rows)
@@ -149,9 +149,12 @@ def recipe_to_graph_row(recipe: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": recipe["name"],
         "category": recipe.get("category", ""),
-        "cooking_time": recipe.get("cooking_time", ""),
+        "cooking_time_minutes": canonical_minutes(recipe),
         "difficulty": recipe.get("difficulty", ""),
-        "calories": int(recipe.get("calories", 0)),
+        "calories_per_100g": canonical_number(recipe, "calories_per_100g", "calories", integer=True),
+        "protein_g_per_100g": canonical_number(recipe, "protein_g_per_100g"),
+        "fat_g_per_100g": canonical_number(recipe, "fat_g_per_100g"),
+        "nutrition_estimated": bool(recipe.get("nutrition_estimated", True)),
         "steps": recipe.get("steps", ""),
         "ingredients": sorted({item.strip() for item in recipe.get("ingredients", []) if item.strip()}),
         "tags": tags,
@@ -159,6 +162,35 @@ def recipe_to_graph_row(recipe: dict[str, Any]) -> dict[str, Any]:
         "goals": goals,
         "meal_times": meal_times,
     }
+
+
+def canonical_minutes(recipe: dict[str, Any]) -> int:
+    value = recipe.get("cooking_time_minutes")
+    if not value:
+        import re
+
+        match = re.search(r"\d+", str(recipe.get("cooking_time") or ""))
+        value = match.group(0) if match else 0
+    try:
+        return max(0, int(float(value or 0)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def canonical_number(
+    recipe: dict[str, Any],
+    key: str,
+    legacy_key: str | None = None,
+    integer: bool = False,
+) -> int | float:
+    value = recipe.get(key)
+    if (value is None or value == "") and legacy_key:
+        value = recipe.get(legacy_key)
+    try:
+        number = max(0.0, float(value or 0))
+    except (TypeError, ValueError):
+        number = 0.0
+    return int(round(number)) if integer else round(number, 1)
 
 
 def graph_counts_from_rows(rows: list[dict[str, Any]]) -> dict[str, int]:

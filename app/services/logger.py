@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import logging
 import sys
-from logging.handlers import TimedRotatingFileHandler
+from datetime import date
 from pathlib import Path
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 LOG_DIR = ROOT_DIR / "logs"
-LOG_FILE = LOG_DIR / "smart_recipe.log"
+# Do not rename an open log file on Windows.  Uvicorn's reload process and a
+# previous development server may briefly have the same file open, which makes
+# TimedRotatingFileHandler fail with WinError 32 during its midnight rollover.
+# A date in the filename gives each server start a date-stamped log without an
+# in-place rename. A server that stays up across midnight keeps its start date.
+LOG_FILE = LOG_DIR / f"smart_recipe-{date.today():%Y-%m-%d}.log"
 
 
 def configure_logging() -> None:
@@ -29,13 +34,7 @@ def configure_logging() -> None:
     console.setLevel(logging.INFO)
     console.setFormatter(formatter)
 
-    file_handler = TimedRotatingFileHandler(
-        LOG_FILE,
-        when="midnight",
-        interval=1,
-        backupCount=7,
-        encoding="utf-8",
-    )
+    file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
 

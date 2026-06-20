@@ -232,7 +232,12 @@ def test_answer_agent_uses_llm_when_sql_query_has_no_rows(monkeypatch) -> None:
         intent="structured_recipe_query",
         target_agent="sql_agent",
         agent_output="低脂相关菜谱：本地数据库暂时没有查到匹配结果。",
-        meta={"recipe_source": "llm_fallback_query", "sql_status": "empty", "sql_rows": []},
+        meta={
+            "recipe_source": "llm_fallback_query",
+            "sql_status": "empty",
+            "sql_rows": [],
+            "user_preferences": {"preferences": ["低脂"], "allergies": ["虾"], "dislikes": ["香菜"]},
+        },
     )
 
     result = AnswerAgent(llm).run(state)
@@ -240,9 +245,57 @@ def test_answer_agent_uses_llm_when_sql_query_has_no_rows(monkeypatch) -> None:
     assert llm.calls == 1
     assert result.generator == "test"
     assert result.meta["answer_guard"] == "llm_fallback_declared"
-    assert "不来自本地菜谱库" in result.final_answer
+    assert "不视为本地菜谱库命中" in result.final_answer
     assert "建议方向：" in result.final_answer
     assert "不能声称内容来自数据库" in llm.prompt
+    assert "绝对禁用-过敏：['虾']" in llm.prompt
+    assert "绝对禁用-不吃：['香菜']" in llm.prompt
+    assert "不得只说没有结果" in llm.prompt
+
+
+def test_answer_agent_rejects_llm_fallback_that_uses_blocked_ingredient(monkeypatch) -> None:
+    monkeypatch.setenv("CACHE_DATA_VERSION", "llm-query-blocked-ingredient-test")
+    llm = QueryFallbackLLM()
+    state = AgentState(
+        user_input="推荐低脂高蛋白晚餐",
+        session_id="s",
+        top_k=2,
+        intent="structured_recipe_query",
+        agent_output="数据库筛选为空。",
+        meta={
+            "recipe_source": "llm_fallback_query",
+            "user_preferences": {"preferences": ["低脂", "高蛋白"], "allergies": ["鸡肉"], "dislikes": []},
+        },
+    )
+
+    result = AnswerAgent(llm).run(state)
+
+    assert llm.calls == 1
+    assert result.meta["llm_fallback_rejected_blocked_terms"] == ["鸡胸肉"]
+    assert "鸡胸肉" not in result.final_answer
+    assert "推荐方案：" in result.final_answer
+
+
+def test_answer_agent_has_safe_recommendations_when_llm_unavailable() -> None:
+    state = AgentState(
+        user_input="我想吃低脂高蛋白套餐",
+        session_id="s",
+        top_k=2,
+        intent="structured_recipe_query",
+        agent_output="数据库筛选为空。",
+        meta={
+            "recipe_source": "llm_fallback_query",
+            "user_preferences": {"preferences": ["低脂"], "allergies": ["鸡肉"], "dislikes": ["豆腐"]},
+        },
+    )
+
+    result = AnswerAgent(NoLLM()).run(state)
+
+    assert result.meta["llm_fallback_attempted"] is False
+    assert "推荐方案：" in result.final_answer
+    assert "鸡胸肉" not in result.final_answer
+    assert "香煎豆腐" not in result.final_answer
+    assert "尝试其他筛选条件" not in result.final_answer
 
 
 def test_image_answer_prompt_requires_dish_intro_before_similar_recipes() -> None:
@@ -301,6 +354,35 @@ def test_image_template_introduces_recognized_dish_before_similar_recipes() -> N
     assert "家常清炒青椒川菜" in result.final_answer
 
 
+def test_image_template_only_introduces_dish_without_recommendation_request() -> None:
+    llm = CountingLLM()
+    state = AgentState(
+        user_input="这是什么菜？",
+        session_id="s",
+        top_k=1,
+        intent="image_recipe_query",
+        target_agent="vision_agent",
+        agent_output="Vision Agent 图片识别结果：可能菜品=地三鲜，置信度=0.86。相似菜谱检索结果：家常清炒青椒川菜。",
+        retrieved_docs=[(make_image_recipe(), 0.8)],
+        vision_result={
+            "dish_name": "地三鲜",
+            "confidence": 0.86,
+            "ingredients": ["土豆", "茄子", "青椒"],
+            "cooking_method": "炒",
+            "description": "图中像一盘地三鲜",
+        },
+    )
+
+    result = AnswerAgent(llm).run(state)
+
+    assert "图片识别结果" in result.final_answer
+    assert "菜品介绍" in result.final_answer
+    assert "地三鲜" in result.final_answer
+    assert "相似菜谱参考" not in result.final_answer
+    assert "本地菜谱库匹配" not in result.final_answer
+    assert result.retrieved_docs == []
+
+
 def test_image_template_downgrades_similar_recipes_when_recognition_is_unknown() -> None:
     llm = CountingLLM()
     state = AgentState(
@@ -337,6 +419,37 @@ def test_router_rule_fast_routes_low_fat_dinner_to_sql_without_llm() -> None:
     assert result.intent == "structured_recipe_query"
     assert result.target_agent == "sql_agent"
     assert result.meta["router_mode"] == "rule_fast"
+
+
+def test_router_treats_specific_dish_desire_as_recipe_detail() -> None:
+    state = AgentState(
+        user_input="我想吃西红柿炒鸡蛋了",
+        session_id="s",
+        top_k=1,
+        chat_history="用户：推荐低脂高蛋白晚餐，家里有鸡胸肉和西兰花",
+    )
+
+    result = RouterAgent(None, enable_database_agents=True).run(state)
+
+    assert result.intent == "recipe_detail"
+    assert result.target_agent == "recipe_agent"
+
+
+def test_router_treats_unknown_specific_dish_as_recipe_detail() -> None:
+    router = RouterAgent(None, enable_database_agents=True)
+
+    for message in ("红烧大肘子", "想吃红烧大肘子", "我想吃红烧大肘子"):
+        result = router.run(AgentState(user_input=message, session_id="s", top_k=1))
+        assert result.intent == "recipe_detail"
+        assert result.target_agent == "recipe_agent"
+
+
+def test_router_keeps_broad_meal_constraints_as_recommendation() -> None:
+    result = RouterAgent(None, enable_database_agents=True).run(
+        AgentState(user_input="想吃低脂高蛋白晚餐", session_id="s", top_k=1)
+    )
+
+    assert result.intent == "structured_recipe_query"
 
 
 def test_answer_agent_returns_direct_output_without_llm() -> None:

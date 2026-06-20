@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import File, Form, Request, UploadFile
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.agents.answer_agent import AnswerAgent
@@ -28,6 +29,7 @@ from app.services.graph_rag import GraphRAG
 from app.services.image_analyzer import ImageAnalyzer
 from app.services.logger import configure_logging, get_logger
 from app.services.redis_memory import build_memory_store
+from app.services.server_activity import mark_server_activity
 from app.tools.registry import build_default_tool_registry
 
 
@@ -49,6 +51,7 @@ app = FastAPI(
 
 @app.middleware("http")
 async def request_timing_middleware(request: Request, call_next):
+    mark_server_activity()
     start = time.perf_counter()
     logger.info("请求开始 方法=%s 路径=%s", request.method, request.url.path)
     try:
@@ -100,6 +103,11 @@ if STATIC_DIR.exists():
     app.mount("/ui", StaticFiles(directory=STATIC_DIR, html=True), name="ui")
 
 
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    return RedirectResponse(url="/ui/", status_code=307)
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {
@@ -115,9 +123,7 @@ def health() -> dict[str, str]:
 
 @app.get("/debug/session/{session_id}")
 def debug_session(session_id: str) -> dict:
-    data = memory_store.debug_session(session_id)
-    data["mysql_preferences"] = safe_debug_call(lambda: workflow.sql_agent.store.get_user_preferences(session_id))
-    return data
+    return memory_store.debug_session(session_id)
 
 
 @app.get("/debug/stats")
