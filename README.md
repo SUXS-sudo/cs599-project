@@ -128,9 +128,9 @@ python scripts/start_server.py --host 127.0.0.1 --port 8010
 
 ## 项目状态
 
-- [x] Proposal
-- [x] MVP
-- [x] Final
+✅ Proposal
+✅ MVP
+⬜ Final
 
 ## 大作业报告与演示视频
 
