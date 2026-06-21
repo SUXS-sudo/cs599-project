@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.services import logger as logger_service
+from src.services import logger as logger_service
 
 
 def test_logging_configuration_creates_log_file() -> None:

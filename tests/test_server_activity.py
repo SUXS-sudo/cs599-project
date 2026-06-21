@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.services import server_activity
+from src.services import server_activity
 
 
 def test_mark_server_activity_touches_managed_heartbeat(monkeypatch) -> None:

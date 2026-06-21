@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from app.agents.recipe_agent import RecipeAgent, extract_recipe_detail_target
-from app.retriever import Recipe
-from app.services.graph_rag import GraphRAG, format_graph_context
-from app.services.neo4j_store import recipe_to_graph_row
-from app.state import AgentState
+from src.agents.recipe_agent import RecipeAgent, extract_recipe_detail_target
+from src.retriever import Recipe
+from src.services.graph_rag import GraphRAG, format_graph_context
+from src.services.neo4j_store import recipe_to_graph_row
+from src.state import AgentState
 
 
 class FakeNeo4jStore:

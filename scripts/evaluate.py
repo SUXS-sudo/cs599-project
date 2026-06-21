@@ -124,7 +124,7 @@ def _first_hit_rank(ranked_names: list[str], expected_names: set[str]) -> int | 
 def cmd_retrieval(args: argparse.Namespace) -> int:
     os.environ["RAG_BACKEND"] = args.backend
 
-    from app.retriever import RecipeRetriever
+    from src.retriever import RecipeRetriever
 
     cases = _load_cases(Path(args.eval_file))
     retriever = RecipeRetriever(ROOT_DIR / "data" / "recipes.json")
@@ -209,9 +209,9 @@ def _env_bool(primary: str, fallback: str | None = None, default: bool = False) 
 
 
 def cmd_router(args: argparse.Namespace) -> int:
-    from app.agents.router_agent import RouterAgent
-    from app.services.llm_client import LLMClient
-    from app.state import AgentState
+    from src.agents.router_agent import RouterAgent
+    from src.services.llm_client import LLMClient
+    from src.state import AgentState
 
     cases = _load_cases(Path(args.eval_file))
     force_enable = args.enable_database_agents or args.enable_v2
@@ -278,9 +278,9 @@ def cmd_router(args: argparse.Namespace) -> int:
 # ── text2sql ───────────────────────────────────────────────────────────────
 
 def cmd_text2sql(_args: argparse.Namespace) -> int:
-    from app.agents.router_agent import RouterAgent
-    from app.agents.sql_agent import SQLAgent
-    from app.state import AgentState
+    from src.agents.router_agent import RouterAgent
+    from src.agents.sql_agent import SQLAgent
+    from src.state import AgentState
 
     cases = _load_cases(ROOT_DIR / "data" / "evals" / "text2sql_cases.jsonl")
     router = RouterAgent()
@@ -310,9 +310,9 @@ def cmd_text2sql(_args: argparse.Namespace) -> int:
 # ── text2cypher ────────────────────────────────────────────────────────────
 
 def cmd_text2cypher(_args: argparse.Namespace) -> int:
-    from app.agents.cypher_agent import CypherAgent
-    from app.agents.router_agent import RouterAgent
-    from app.state import AgentState
+    from src.agents.cypher_agent import CypherAgent
+    from src.agents.router_agent import RouterAgent
+    from src.state import AgentState
 
     cases = _load_cases(ROOT_DIR / "data" / "evals" / "text2cypher_cases.jsonl")
     router = RouterAgent()
@@ -345,11 +345,11 @@ def cmd_document_rag(args: argparse.Namespace) -> int:
 
     import numpy as np
 
-    from app.services.document_chunking import DocumentChunk
-    from app.services.embeddings import EmbeddingProvider
-    from app.services.hyde import HyDEGenerator
-    from app.services.llm_client import load_dotenv
-    from app.services.query_rewrite import rewrite_recipe_query
+    from src.services.document_chunking import DocumentChunk
+    from src.services.embeddings import EmbeddingProvider
+    from src.services.hyde import HyDEGenerator
+    from src.services.llm_client import load_dotenv
+    from src.services.query_rewrite import rewrite_recipe_query
 
     _search_mod = importlib.import_module("scripts.search_document_faiss")
     collect_candidates = _search_mod.collect_candidates
@@ -484,7 +484,7 @@ def _build_document_rag_cases(chunks) -> list[dict[str, Any]]:
 
 
 def _load_document_rag_cases(path: Path, chunks) -> list[dict[str, Any]]:
-    from app.services.document_chunking import DocumentChunk
+    from src.services.document_chunking import DocumentChunk
 
     dish_to_chunks: dict[str, list[str]] = {}
     for chunk in chunks:
@@ -511,7 +511,7 @@ def _load_document_rag_cases(path: Path, chunks) -> list[dict[str, Any]]:
 
 
 def _search_document_case(case, index, provider, chunks, hyde_generator, top_k, candidate_k, expected_dim, use_query_rewrite, use_hyde, use_cross_encoder, cross_encoder_model, collect_candidates, rank_results):
-    from app.services.query_rewrite import rewrite_recipe_query
+    from src.services.query_rewrite import rewrite_recipe_query
 
     query = case["query"]
     rewrite = rewrite_recipe_query(query)
@@ -597,12 +597,12 @@ def cmd_preferences(args: argparse.Namespace) -> int:
     os.environ.setdefault("RAG_BACKEND", "bm25")
     os.environ.setdefault("RERANK_ENABLED", "false")
 
-    from app.agents.preference_agent import PreferenceAgent
-    from app.agents.recipe_agent import RecipeAgent
-    from app.retriever import RecipeRetriever
-    from app.services.memory import MemoryStore
-    from app.services.redis_memory import RedisMemoryStore
-    from app.state import AgentState
+    from src.agents.preference_agent import PreferenceAgent
+    from src.agents.recipe_agent import RecipeAgent
+    from src.retriever import RecipeRetriever
+    from src.services.memory import MemoryStore
+    from src.services.redis_memory import RedisMemoryStore
+    from src.state import AgentState
 
     cases = _load_cases(Path(args.eval_file))
     memory_store = RedisMemoryStore(max_messages=10) if args.backend == "redis" else MemoryStore(max_messages=10)

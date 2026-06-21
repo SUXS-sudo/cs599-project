@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.services.embeddings import DEFAULT_EMBEDDING_MODEL, EmbeddingProvider
+from src.services.embeddings import DEFAULT_EMBEDDING_MODEL, EmbeddingProvider
 
 
 def test_embedding_provider_defaults_to_bge_model(monkeypatch) -> None:

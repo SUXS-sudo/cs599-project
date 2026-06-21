@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from app.services.checkpoint_store import CheckpointStore
-from app.services.context_budget import ContextBudgetConfig, ContextBudgetManager, TokenCounter
-from app.services.memory import ChatMessage, MemoryStore
+from src.services.checkpoint_store import CheckpointStore
+from src.services.context_budget import ContextBudgetConfig, ContextBudgetManager, TokenCounter
+from src.services.memory import ChatMessage, MemoryStore
 
 
 def small_budget() -> ContextBudgetConfig:

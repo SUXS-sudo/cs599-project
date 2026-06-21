@@ -10,9 +10,9 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.agents.data_engineering_agent import RecipeParsingAgent
-from app.services.llm_client import LLMClient
-from app.services.heterogeneous_recipe_pipeline import import_graph_manifest_to_neo4j
+from src.agents.data_engineering_agent import RecipeParsingAgent
+from src.services.llm_client import LLMClient
+from src.services.heterogeneous_recipe_pipeline import import_graph_manifest_to_neo4j
 
 
 def main() -> int:

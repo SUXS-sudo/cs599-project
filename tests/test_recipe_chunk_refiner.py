@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.recipe_chunk_refiner import refine_recipe_chunks
+from src.services.recipe_chunk_refiner import refine_recipe_chunks
 
 
 def test_refine_recipe_chunks_splits_two_recipes_and_assigns_tips() -> None:

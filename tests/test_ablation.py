@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-import app.main as main
-from app.agents.router_agent import RouterAgent
-from app.services.ablation import load_ablation_config, metric_definitions
-from app.state import AgentState
+import src.main as main
+from src.agents.router_agent import RouterAgent
+from src.services.ablation import load_ablation_config, metric_definitions
+from src.state import AgentState
 
 
 def test_ablation_config_reads_feature_flags(monkeypatch) -> None:

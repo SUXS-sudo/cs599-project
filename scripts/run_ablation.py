@@ -136,9 +136,9 @@ def main() -> int:
 
 
 def evaluate_retrieval(max_k: int) -> dict[str, Any]:
-    from app.agents.rerank_agent import RerankAgent
-    from app.retriever import RecipeRetriever
-    from app.state import AgentState
+    from src.agents.rerank_agent import RerankAgent
+    from src.retriever import RecipeRetriever
+    from src.state import AgentState
 
     cases = read_jsonl(ROOT_DIR / "data" / "evals" / "rag_retrieval.jsonl")
     retriever = RecipeRetriever(ROOT_DIR / "data" / "recipes.json")
@@ -179,7 +179,7 @@ def evaluate_retrieval(max_k: int) -> dict[str, Any]:
 
 
 def suppress_smart_recipe_info_logs() -> None:
-    from app.services.logger import configure_logging
+    from src.services.logger import configure_logging
 
     configure_logging()
     logger = logging.getLogger("smart_recipe")
@@ -189,8 +189,8 @@ def suppress_smart_recipe_info_logs() -> None:
 
 
 def evaluate_router(enable_database_agents: bool, enable_fusion: bool) -> dict[str, Any]:
-    from app.agents.router_agent import RouterAgent
-    from app.state import AgentState
+    from src.agents.router_agent import RouterAgent
+    from src.state import AgentState
 
     cases = read_jsonl(ROOT_DIR / "data" / "evals" / "router_intents.jsonl")
     router = RouterAgent(None, enable_database_agents=enable_database_agents, enable_fusion=enable_fusion)

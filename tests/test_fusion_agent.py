@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from app.agents.fusion_agent import FusionAgent, fuse_source_results
-from app.state import AgentState
+from src.agents.fusion_agent import FusionAgent, fuse_source_results
+from src.state import AgentState
 
 
 def test_fusion_single_source_passthrough_top_k() -> None:

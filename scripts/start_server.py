@@ -127,7 +127,7 @@ def main() -> int:
         sys.executable,
         "-m",
         "uvicorn",
-        "app.main:app",
+        "src.main:app",
         "--host",
         args.host,
         "--port",

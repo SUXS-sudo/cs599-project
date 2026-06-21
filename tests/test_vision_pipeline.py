@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.agents.vision_agent import VisionAgent
-from app.retriever import Recipe
-from app.services.data_pipeline import normalize_recipe, run_recipe_pipeline
-from app.services.image_analyzer import ImageAnalyzer
-from app.state import AgentState
+from src.agents.vision_agent import VisionAgent
+from src.retriever import Recipe
+from src.services.data_pipeline import normalize_recipe, run_recipe_pipeline
+from src.services.image_analyzer import ImageAnalyzer
+from src.state import AgentState
 
 
 class FakeRetriever:

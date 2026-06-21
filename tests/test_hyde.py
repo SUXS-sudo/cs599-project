@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.hyde import HyDEGenerator
+from src.services.hyde import HyDEGenerator
 
 
 class FakeLLM:

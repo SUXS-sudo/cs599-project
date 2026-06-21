@@ -24,7 +24,7 @@ if str(ROOT_DIR) not in sys.path:
 # ── mysql ──────────────────────────────────────────────────────────────────
 
 def cmd_mysql(_args: argparse.Namespace) -> int:
-    from app.services.mysql_store import MySQLConfig, MySQLStore
+    from src.services.mysql_store import MySQLConfig, MySQLStore
 
     config = MySQLConfig.from_env()
     store = MySQLStore(config)
@@ -43,7 +43,7 @@ def cmd_mysql(_args: argparse.Namespace) -> int:
 # ── redis ──────────────────────────────────────────────────────────────────
 
 def cmd_redis(args: argparse.Namespace) -> int:
-    from app.services.redis_memory import RedisMemoryStore
+    from src.services.redis_memory import RedisMemoryStore
 
     try:
         store = RedisMemoryStore(max_messages=10)
@@ -72,7 +72,7 @@ def cmd_redis(args: argparse.Namespace) -> int:
 # ── neo4j ──────────────────────────────────────────────────────────────────
 
 def cmd_neo4j(args: argparse.Namespace) -> int:
-    from app.services.neo4j_store import Neo4jConfig, Neo4jStore
+    from src.services.neo4j_store import Neo4jConfig, Neo4jStore
 
     config = Neo4jConfig.from_env()
     store = Neo4jStore(config)
@@ -126,8 +126,8 @@ VISION_PROMPT = (
 
 
 def cmd_llm(args: argparse.Namespace) -> int:
-    from app.services.llm_client import LLMClient, load_dotenv
-    from app.services.hyde import HyDEGenerator
+    from src.services.llm_client import LLMClient, load_dotenv
+    from src.services.hyde import HyDEGenerator
 
     load_dotenv(override=True)
     logging.getLogger("smart_recipe.services.llm").setLevel(logging.ERROR)
@@ -187,7 +187,7 @@ def _check_text(client, timeout: int) -> bool:
 
 
 def _check_hyde(client, timeout: int) -> bool:
-    from app.services.hyde import HyDEGenerator
+    from src.services.hyde import HyDEGenerator
 
     print("\n[HyDE] 正在检查主文本模型的 HyDE 生成...")
     _ = timeout
@@ -250,7 +250,7 @@ def _failure_summary(client) -> str:
 # ── schema ─────────────────────────────────────────────────────────────────
 
 def cmd_schema(args: argparse.Namespace) -> int:
-    from app.services.mysql_store import MySQLConfig, MySQLStore, schema_sql
+    from src.services.mysql_store import MySQLConfig, MySQLStore, schema_sql
 
     config = MySQLConfig.from_env()
     if args.print_sql:

@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from app.agents.answer_agent import AnswerAgent
-from app.agents.support_agents import SafetyAgent
-from app.retriever import Recipe
-from app.services.query_boundary_guard import QueryBoundaryGuard
-from app.state import AgentState
+from src.agents.answer_agent import AnswerAgent
+from src.agents.support_agents import SafetyAgent
+from src.retriever import Recipe
+from src.services.query_boundary_guard import QueryBoundaryGuard
+from src.state import AgentState
 
 
 class SequenceLLM:

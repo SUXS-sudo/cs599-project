@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.retriever import Recipe, RecipeRetriever
-from app.services.hyde import HyDEResult
+from src.retriever import Recipe, RecipeRetriever
+from src.services.hyde import HyDEResult
 
 
 class FakeHyDE:

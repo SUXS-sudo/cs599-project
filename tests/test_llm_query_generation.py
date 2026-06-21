@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from app.agents.cypher_agent import CypherAgent
-from app.agents.sql_agent import SQLAgent
-from app.state import AgentState
+from src.agents.cypher_agent import CypherAgent
+from src.agents.sql_agent import SQLAgent
+from src.state import AgentState
 
 
 class FakeLLM:

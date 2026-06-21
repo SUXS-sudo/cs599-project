@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.query_rewrite import rewrite_recipe_query
+from src.services.query_rewrite import rewrite_recipe_query
 
 
 def test_rewrite_recipe_query_expands_method_query() -> None:

@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from app.agents.router_agent import RouterAgent
-from app.agents.tool_agent import ToolAgent
-from app.retriever import Recipe
-from app.services.llm_client import LLMClient
-from app.services.memory import MemoryStore
-from app.state import AgentState
-from app.tools.base import ToolResult
-from app.tools.database_tools import QueryMySQLRecipesTool, QueryNeo4jRelationshipsTool
-from app.tools.document_tools import SearchDocumentChunksTool
-from app.tools.planning_tools import BuildShoppingListTool, FilterRecipesByConstraintsTool, PlanWeeklyMenuTool
-from app.tools.recipe_tools import GetUserPreferencesTool, SearchRecipesTool
-from app.tools.registry import ToolRegistry
+from src.agents.router_agent import RouterAgent
+from src.agents.tool_agent import ToolAgent
+from src.retriever import Recipe
+from src.services.llm_client import LLMClient
+from src.services.memory import MemoryStore
+from src.state import AgentState
+from src.tools.base import ToolResult
+from src.tools.database_tools import QueryMySQLRecipesTool, QueryNeo4jRelationshipsTool
+from src.tools.document_tools import SearchDocumentChunksTool
+from src.tools.planning_tools import BuildShoppingListTool, FilterRecipesByConstraintsTool, PlanWeeklyMenuTool
+from src.tools.recipe_tools import GetUserPreferencesTool, SearchRecipesTool
+from src.tools.registry import ToolRegistry
 
 
 class FakeRetriever:

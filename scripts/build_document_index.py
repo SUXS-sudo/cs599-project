@@ -12,9 +12,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.services.document_chunking import ChunkingConfig, DocumentChunk, OcrConfig, chunk_documents, write_chunks_jsonl
-from app.services.document_faiss import build_document_faiss_index
-from app.services.recipe_chunk_refiner import refine_recipe_chunks, write_recipe_chunks_jsonl
+from src.services.document_chunking import ChunkingConfig, DocumentChunk, OcrConfig, chunk_documents, write_chunks_jsonl
+from src.services.document_faiss import build_document_faiss_index
+from src.services.recipe_chunk_refiner import refine_recipe_chunks, write_recipe_chunks_jsonl
 
 
 def main() -> int:

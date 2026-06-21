@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from app.agents.rerank_agent import DEFAULT_CROSS_ENCODER_MODEL, RerankAgent
-from app.retriever import Recipe
+from src.agents.rerank_agent import DEFAULT_CROSS_ENCODER_MODEL, RerankAgent
+from src.retriever import Recipe
 
 
 def make_recipe(name: str) -> Recipe:

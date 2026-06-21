@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-import app.main as main
+import src.main as main
 
 
 class FakeMemoryStore:

@@ -21,7 +21,7 @@ if str(ROOT_DIR) not in sys.path:
 # ── mysql ──────────────────────────────────────────────────────────────────
 
 def cmd_mysql(args: argparse.Namespace) -> int:
-    from app.services.mysql_store import MySQLConfig, MySQLStore, load_recipe_json
+    from src.services.mysql_store import MySQLConfig, MySQLStore, load_recipe_json
 
     data_path = Path(args.data_path)
     recipes = load_recipe_json(data_path)
@@ -85,7 +85,7 @@ def cmd_mysql(args: argparse.Namespace) -> int:
 # ── neo4j ──────────────────────────────────────────────────────────────────
 
 def cmd_neo4j(args: argparse.Namespace) -> int:
-    from app.services.neo4j_store import Neo4jConfig, Neo4jStore, dry_run_graph_counts, load_recipe_json
+    from src.services.neo4j_store import Neo4jConfig, Neo4jStore, dry_run_graph_counts, load_recipe_json
 
     data_path = Path(args.data_path)
     recipes = load_recipe_json(data_path)
@@ -160,7 +160,7 @@ def _run_batch(args: argparse.Namespace) -> int:
         print(json.dumps({"dry_run": True, "batch_total": len(results), "results": results}, ensure_ascii=False, indent=2))
         return 0
 
-    from app.services.mysql_store import MySQLConfig, MySQLStore
+    from src.services.mysql_store import MySQLConfig, MySQLStore
 
     config = MySQLConfig.from_env()
     store = MySQLStore(config)
@@ -233,7 +233,7 @@ def _build_import_summary(metadata_path: Path, index_path: Path, index_name: str
 
 
 def _import_one(summary: dict[str, Any], reset: bool, batch_size: int):
-    from app.services.mysql_store import MySQLConfig, MySQLStore
+    from src.services.mysql_store import MySQLConfig, MySQLStore
 
     config = MySQLConfig.from_env()
     store = MySQLStore(config)

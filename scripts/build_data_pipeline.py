@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.services.data_pipeline import build_eval_seed, run_recipe_pipeline
+from src.services.data_pipeline import build_eval_seed, run_recipe_pipeline
 
 
 def main() -> None:

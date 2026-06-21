@@ -4,18 +4,18 @@ import json
 import zipfile
 from pathlib import Path
 
-import app.services.document_faiss as document_faiss
-import app.services.heterogeneous_recipe_pipeline as heterogeneous_pipeline
-from app.services.document_chunking import DocumentChunk
-from app.services.recipe_chunk_refiner import RefinedRecipeChunk
-from app.services.heterogeneous_recipe_pipeline import (
+import src.services.document_faiss as document_faiss
+import src.services.heterogeneous_recipe_pipeline as heterogeneous_pipeline
+from src.services.document_chunking import DocumentChunk
+from src.services.recipe_chunk_refiner import RefinedRecipeChunk
+from src.services.heterogeneous_recipe_pipeline import (
     load_source_records,
     parse_components,
     parse_recipe_record,
     read_jsonl,
     run_heterogeneous_recipe_pipeline,
 )
-from app.services.recipe_enrichment import (
+from src.services.recipe_enrichment import (
     estimate_nutrition_per_100g,
     infer_category,
     infer_difficulty,

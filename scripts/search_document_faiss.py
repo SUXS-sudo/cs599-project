@@ -14,11 +14,11 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.services.document_chunking import DocumentChunk
-from app.services.embeddings import EmbeddingProvider
-from app.services.hyde import HyDEGenerator
-from app.services.llm_client import load_dotenv
-from app.services.query_rewrite import rewrite_recipe_query
+from src.services.document_chunking import DocumentChunk
+from src.services.embeddings import EmbeddingProvider
+from src.services.hyde import HyDEGenerator
+from src.services.llm_client import load_dotenv
+from src.services.query_rewrite import rewrite_recipe_query
 
 
 def main() -> int:

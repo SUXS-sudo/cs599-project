@@ -3,8 +3,8 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
-from app.services import document_chunking
-from app.services.document_chunking import (
+from src.services import document_chunking
+from src.services.document_chunking import (
     ChunkingConfig,
     OcrConfig,
     chunk_document,
