@@ -61,7 +61,7 @@ Smart Recipe/
 ├─ docker-compose.yml      # MySQL、Redis、Neo4j 容器编排
 ├─ requirements.txt        # Python 依赖
 ├─ .env_example            # 环境变量配置模板（不提交真实 API Key）
-└─ CS599_大作业报告.pdf      # 课程大作业报告
+└─ README11.md               # 详细技术文档
 ```
 
 ## 环境搭建
@@ -130,7 +130,7 @@ python scripts/start_server.py --host 127.0.0.1 --port 8010
 
 - [x] Proposal
 - [x] MVP
-- [√] Final
+- [x] Final
 
 ## 大作业报告与演示视频
 
