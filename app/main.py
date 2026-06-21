@@ -12,6 +12,7 @@ from app.agents.cypher_agent import CypherAgent
 from app.agents.fusion_agent import FusionAgent
 from app.agents.nutrition_agent import NutritionAgent
 from app.agents.preference_agent import PreferenceAgent
+from app.agents.query_understanding_agent import QueryUnderstandingAgent
 from app.agents.rerank_agent import RerankAgent
 from app.agents.recipe_agent import RecipeAgent
 from app.agents.router_agent import RouterAgent
@@ -24,6 +25,7 @@ from app.models import ChatRequest, ChatResponse, RecipeHit
 from app.retriever import RecipeRetriever
 from app.services.ablation import ablation_options, env_bool, load_ablation_config, metric_definitions
 from app.services.database_browser import DatabaseBrowser
+from app.services.checkpoint_store import build_checkpoint_store
 from app.services.llm_client import LLMClient, load_dotenv
 from app.services.graph_rag import GraphRAG
 from app.services.image_analyzer import ImageAnalyzer
@@ -73,13 +75,35 @@ async def request_timing_middleware(request: Request, call_next):
 llm_client = LLMClient()
 vision_client = LLMClient(env_prefix="VISION")
 retriever = RecipeRetriever(DATA_PATH, llm_client=llm_client)
-memory_store = build_memory_store(max_messages=10)
+memory_store = build_memory_store(
+    summary_generator=lambda prompt, max_tokens: llm_client.generate(
+        prompt,
+        max_tokens=min(max_tokens, 1_200),
+        timeout=30,
+    )
+)
+checkpoint_store = build_checkpoint_store()
 sql_agent = SQLAgent(llm_client=llm_client)
 cypher_agent = CypherAgent(llm_client=llm_client)
 tool_registry = build_default_tool_registry(retriever, memory_store, sql_agent=sql_agent, cypher_agent=cypher_agent)
 workflow = SmartRecipeGraph(
     router_agent=RouterAgent(llm_client, enable_database_agents=ENABLE_DATABASE_AGENTS, enable_fusion=ABLATION_CONFIG.enable_fusion),
     safety_agent=SafetyAgent(),
+    query_understanding_agent=QueryUnderstandingAgent(
+        llm_client,
+        vocabulary={
+            term
+            for recipe in retriever.recipes
+            for term in (
+                recipe.name,
+                recipe.category,
+                *recipe.ingredients,
+                *recipe.tags,
+                *recipe.suitable_for,
+            )
+            if term
+        },
+    ),
     preference_agent=PreferenceAgent(memory_store),
     recipe_agent=RecipeAgent(
         retriever,
@@ -96,6 +120,7 @@ workflow = SmartRecipeGraph(
     rerank_agent=RerankAgent(),
     answer_agent=AnswerAgent(llm_client),
     memory_store=memory_store,
+    checkpoint_store=checkpoint_store,
 )
 data_agent = DataAgent()
 database_browser = DatabaseBrowser(mysql_store=sql_agent.store, neo4j_store=cypher_agent.store)
@@ -117,6 +142,7 @@ def health() -> dict[str, str]:
         "embedding": retriever.embedding_backend,
         "rerank": "enabled",
         "memory": getattr(memory_store, "backend", "memory"),
+        "checkpoint": checkpoint_store.backend,
         "enable_database_agents": str(ENABLE_DATABASE_AGENTS).lower(),
     }
 
@@ -124,6 +150,19 @@ def health() -> dict[str, str]:
 @app.get("/debug/session/{session_id}")
 def debug_session(session_id: str) -> dict:
     return memory_store.debug_session(session_id)
+
+
+@app.delete("/chat/session/{session_id}")
+def delete_chat_session(session_id: str) -> dict[str, str | int | bool]:
+    delete_checkpoint = getattr(workflow, "delete_checkpoint", None)
+    deleted_checkpoint = bool(delete_checkpoint(session_id)) if callable(delete_checkpoint) else False
+    deleted_keys = memory_store.delete_session(session_id)
+    return {
+        "ok": True,
+        "session_id": session_id,
+        "deleted_keys": deleted_keys,
+        "deleted_checkpoint": deleted_checkpoint,
+    }
 
 
 @app.get("/debug/stats")
@@ -135,6 +174,11 @@ def debug_stats() -> dict:
             "ok": True,
             "backend": getattr(memory_store, "backend", "memory"),
             "active_sessions": memory_store.active_session_count(),
+        },
+        "checkpoint": {
+            "ok": not bool(checkpoint_store.error),
+            "backend": checkpoint_store.backend,
+            "error": checkpoint_store.error,
         },
         "retriever": {
             "ok": True,

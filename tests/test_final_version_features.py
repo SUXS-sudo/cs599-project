@@ -126,6 +126,20 @@ def test_memory_store_builds_long_term_summary() -> None:
     assert "Recent conversation" in formatted
 
 
+def test_memory_store_delete_session_removes_all_memory() -> None:
+    store = MemoryStore(max_messages=4)
+    store.add_turn("s", "我喜欢清淡", "记住了")
+    store.update_preferences("s", preferences=["清淡"], dislikes=["牛肉"])
+
+    assert store.delete_session("s") == 2
+    assert store.debug_session("s")["history"] == []
+    assert store.debug_session("s")["preferences"] == {
+        "preferences": [],
+        "allergies": [],
+        "dislikes": [],
+    }
+
+
 def test_data_agent_runs_pipeline() -> None:
     artifact_dir = Path(__file__).resolve().parent.parent / ".test_artifacts"
     artifact_dir.mkdir(exist_ok=True)

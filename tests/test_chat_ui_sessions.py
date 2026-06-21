@@ -20,6 +20,9 @@ def test_chat_ui_has_session_scoped_conversation_history() -> None:
     assert 'closeConversationMenus()' in html
     assert 'addEventListener("contextmenu"' not in html
     assert 'deleteConversation(item.id)' in html
+    assert 'async function deleteConversation(id)' in html
+    assert 'method: "DELETE"' in html
+    assert '/chat/session/${encodeURIComponent(target.sessionId)}' in html
     assert html.count('href="/ui/database.html"') == 1
     assert 'value="demo-user"' not in html
 

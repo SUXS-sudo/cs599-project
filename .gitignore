@@ -23,7 +23,8 @@ data/
 models/
 
 # Docs and PDFs
-docs/
+docs/img
+docs/RAG_TECHNOLOGY.md
 pdf/
 
 # IDE

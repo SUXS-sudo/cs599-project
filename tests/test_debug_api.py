@@ -8,6 +8,9 @@ import app.main as main
 class FakeMemoryStore:
     backend = "memory"
 
+    def __init__(self) -> None:
+        self.deleted_session_id = ""
+
     def debug_session(self, session_id: str) -> dict:
         return {
             "session_id": session_id,
@@ -19,6 +22,10 @@ class FakeMemoryStore:
 
     def active_session_count(self) -> int:
         return 2
+
+    def delete_session(self, session_id: str) -> int:
+        self.deleted_session_id = session_id
+        return 3
 
 
 class FakeStore:
@@ -32,6 +39,11 @@ class FakeWorkflow:
     def __init__(self) -> None:
         self.sql_agent = type("SqlAgent", (), {"store": FakeStore({"recipes": 300})})()
         self.cypher_agent = type("CypherAgent", (), {"store": FakeStore({"Recipe": 300, "REL:USES": 900})})()
+        self.deleted_checkpoint = ""
+
+    def delete_checkpoint(self, session_id: str) -> bool:
+        self.deleted_checkpoint = session_id
+        return True
 
 
 class FakeRetriever:
@@ -67,6 +79,26 @@ def test_root_redirects_to_chat_ui() -> None:
 
     assert response.status_code == 307
     assert response.headers["location"] == "/ui/"
+
+
+def test_delete_chat_session_removes_backend_memory(monkeypatch) -> None:
+    store = FakeMemoryStore()
+    workflow = FakeWorkflow()
+    monkeypatch.setattr(main, "memory_store", store)
+    monkeypatch.setattr(main, "workflow", workflow)
+    client = TestClient(main.app)
+
+    response = client.delete("/chat/session/chat-123")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": True,
+        "session_id": "chat-123",
+        "deleted_keys": 3,
+        "deleted_checkpoint": True,
+    }
+    assert store.deleted_session_id == "chat-123"
+    assert workflow.deleted_checkpoint == "chat-123"
 
 
 def test_debug_stats_returns_service_sections(monkeypatch) -> None:

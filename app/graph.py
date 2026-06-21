@@ -10,6 +10,7 @@ from app.agents.cypher_agent import CypherAgent
 from app.agents.fusion_agent import FusionAgent
 from app.agents.nutrition_agent import NutritionAgent
 from app.agents.preference_agent import PreferenceAgent
+from app.agents.query_understanding_agent import QueryUnderstandingAgent
 from app.agents.rerank_agent import RerankAgent
 from app.agents.recipe_agent import RecipeAgent
 from app.agents.router_agent import RouterAgent
@@ -19,6 +20,7 @@ from app.agents.tool_agent import ToolAgent
 from app.agents.vision_agent import VisionAgent
 from app.retriever import Recipe
 from app.services.memory import MemoryStore
+from app.services.checkpoint_store import CheckpointStore
 from app.services.logger import get_logger
 from app.state import AgentState
 from app.tools.registry import ToolRegistry
@@ -48,6 +50,7 @@ class SmartRecipeGraph:
         self,
         router_agent: RouterAgent,
         safety_agent: SafetyAgent,
+        query_understanding_agent: QueryUnderstandingAgent,
         preference_agent: PreferenceAgent,
         recipe_agent: RecipeAgent,
         nutrition_agent: NutritionAgent,
@@ -60,9 +63,11 @@ class SmartRecipeGraph:
         answer_agent: AnswerAgent,
         memory_store: MemoryStore,
         tool_agent: ToolAgent | None = None,
+        checkpoint_store: CheckpointStore | None = None,
     ) -> None:
         self.router_agent = router_agent
         self.safety_agent = safety_agent
+        self.query_understanding_agent = query_understanding_agent
         self.preference_agent = preference_agent
         self.recipe_agent = recipe_agent
         self.nutrition_agent = nutrition_agent
@@ -75,17 +80,12 @@ class SmartRecipeGraph:
         self.rerank_agent = rerank_agent
         self.answer_agent = answer_agent
         self.memory_store = memory_store
+        self.checkpoint_store = checkpoint_store or CheckpointStore()
         self.app = self._build_graph()
 
     def run(self, message: str, session_id: str, top_k: int) -> AgentState:
-        initial_state: GraphState = {
-            "user_input": message,
-            "session_id": session_id,
-            "top_k": top_k,
-            "chat_history": self.memory_store.format_history(session_id),
-            "meta": {},
-        }
-        result = self.app.invoke(initial_state)
+        initial_state = self._initial_state(message, session_id, top_k)
+        result = self.app.invoke(initial_state, config=self.checkpoint_store.config(session_id))
         final_state = self._to_agent_state(result)
         self.memory_store.add_turn(session_id, message, final_state.final_answer)
         final_state.meta.update(
@@ -93,6 +93,8 @@ class SmartRecipeGraph:
                 "workflow": "langgraph_final_version",
                 "router": "rule",
                 "memory_messages": len(self.memory_store.get_history(session_id)),
+                "checkpoint_backend": self.checkpoint_store.backend,
+                "context_budget": self.memory_store.debug_session(session_id)["context_budget"],
             }
         )
         return final_state
@@ -105,33 +107,55 @@ class SmartRecipeGraph:
         image_bytes: bytes,
         filename: str,
     ) -> AgentState:
-        initial_state: GraphState = {
-            "user_input": message,
-            "session_id": session_id,
-            "top_k": top_k,
-            "chat_history": self.memory_store.format_history(session_id),
-            "intent": "image_recipe_query",
-            "target_agent": "vision_agent",
-            "meta": {
-                "image_bytes": image_bytes,
-                "image_filename": filename,
-                "input_modality": "image",
-            },
-        }
-        result = self.app.invoke(initial_state)
+        initial_state = self._initial_state(message, session_id, top_k)
+        initial_state.update(
+            {
+                "intent": "image_recipe_query",
+                "target_agent": "vision_agent",
+                "meta": {
+                    "image_bytes": image_bytes,
+                    "image_filename": filename,
+                    "input_modality": "image",
+                },
+            }
+        )
+        result = self.app.invoke(initial_state, config=self.checkpoint_store.config(session_id))
         final_state = self._to_agent_state(result)
         self.memory_store.add_turn(session_id, f"[image:{filename}] {message}", final_state.final_answer)
         final_state.meta.update(
             {
                 "workflow": "langgraph_multimodal",
                 "memory_messages": len(self.memory_store.get_history(session_id)),
+                "checkpoint_backend": self.checkpoint_store.backend,
+                "context_budget": self.memory_store.debug_session(session_id)["context_budget"],
             }
         )
         return final_state
 
+    def delete_checkpoint(self, session_id: str) -> bool:
+        return self.checkpoint_store.delete_thread(session_id)
+
+    def _initial_state(self, message: str, session_id: str, top_k: int) -> GraphState:
+        return {
+            "user_input": message,
+            "session_id": session_id,
+            "top_k": top_k,
+            "chat_history": self.memory_store.format_history(session_id),
+            "intent": "out_of_scope",
+            "target_agent": "general_agent",
+            "retrieved_docs": [],
+            "fusion_results": [],
+            "vision_result": {},
+            "agent_output": "",
+            "final_answer": "",
+            "generator": "template",
+            "meta": {},
+        }
+
     def _build_graph(self):
         graph = StateGraph(GraphState)
         graph.add_node("safety", self._safety_node)
+        graph.add_node("query_understanding", self._query_understanding_node)
         graph.add_node("preference_agent", self._preference_node)
         graph.add_node("router", self._router_node)
         graph.add_node("recipe_agent", self._recipe_node)
@@ -150,6 +174,14 @@ class SmartRecipeGraph:
         graph.add_conditional_edges(
             "safety",
             self._route_after_safety,
+            {
+                "query_understanding": "query_understanding",
+                "answer_agent": "answer_agent",
+            },
+        )
+        graph.add_conditional_edges(
+            "query_understanding",
+            self._route_after_query_understanding,
             {
                 "preference_agent": "preference_agent",
                 "answer_agent": "answer_agent",
@@ -188,10 +220,13 @@ class SmartRecipeGraph:
         graph.add_edge("rerank_agent", "answer_agent")
         graph.add_edge("general_agent", "answer_agent")
         graph.add_edge("answer_agent", END)
-        return graph.compile()
+        return graph.compile(checkpointer=self.checkpoint_store.saver)
 
     def _safety_node(self, state: GraphState) -> GraphState:
         return self._run_agent_node("safety_agent", self.safety_agent, state)
+
+    def _query_understanding_node(self, state: GraphState) -> GraphState:
+        return self._run_agent_node("query_understanding_agent", self.query_understanding_agent, state)
 
     def _preference_node(self, state: GraphState) -> GraphState:
         return self._run_agent_node("preference_agent", self.preference_agent, state)
@@ -252,7 +287,13 @@ class SmartRecipeGraph:
             )
 
     @staticmethod
-    def _route_after_safety(state: GraphState) -> Literal["preference_agent", "answer_agent"]:
+    def _route_after_safety(state: GraphState) -> Literal["query_understanding", "answer_agent"]:
+        if state.get("meta", {}).get("safety_status") == "blocked":
+            return "answer_agent"
+        return "query_understanding"
+
+    @staticmethod
+    def _route_after_query_understanding(state: GraphState) -> Literal["preference_agent", "answer_agent"]:
         if state.get("meta", {}).get("safety_status") == "blocked":
             return "answer_agent"
         return "preference_agent"
@@ -324,6 +365,12 @@ def summarize_agent_output(name: str, state: AgentState, limit: int = 500) -> st
         return "未提取到新的用户偏好"
     if name == "safety_agent":
         return f"安全状态={state.meta.get('safety_status', '通过')}"
+    if name == "query_understanding_agent":
+        understanding = state.meta.get("query_understanding", {})
+        return compact_text(
+            f"查询理解={understanding.get('status', '未知')}，结果={understanding.get('resolved_query', state.user_input)}",
+            limit,
+        )
     if name == "rerank_agent":
         names = [recipe.name for recipe, _score in state.retrieved_docs[:5]]
         return "重排候选=" + ("、".join(names) if names else "无")

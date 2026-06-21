@@ -14,7 +14,8 @@ def test_docker_compose_contains_database_services_only() -> None:
     assert "app:" not in compose
     assert "mysql:8.0" in compose
     assert "neo4j:5" in compose
-    assert "redis:7" in compose
+    assert "redis/redis-stack-server:latest" in compose
+    assert "REDIS_ARGS" in compose
     assert '"3307:3306"' in compose
     assert '"7474:7474"' in compose
     assert '"7687:7687"' in compose

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import os
+import re
 
 from app.retriever import Recipe
 from app.agents.preference_agent import expand_preference_terms
-from app.services.answer_guard import verify_answer_grounding
+from app.services.answer_guard import build_evidence_text, safe_repair_fallback, verify_answer
 from app.services.cache_store import cache_data_version, cache_ttl_seconds, get_cache_store, stable_cache_key
 from app.services.llm_client import LLMClient
 from app.state import AgentState
@@ -16,6 +17,14 @@ class AnswerAgent:
         self.cache = get_cache_store()
 
     def run(self, state: AgentState) -> AgentState:
+        if state.meta.get("dish_name_only"):
+            dish_name = re.sub(r"[^\u4e00-\u9fff]", "", str(state.meta.get("resolved_dish_name") or ""))
+            if dish_name:
+                state.final_answer = dish_name
+                state.generator = "rule"
+                state.meta["answer_mode"] = "dish_name_only"
+                state.meta["answer_guard"] = "not_required"
+                return state
         if state.intent == "out_of_scope":
             state.final_answer = state.agent_output
             state.generator = "rule"
@@ -25,16 +34,19 @@ class AnswerAgent:
             state.final_answer = state.agent_output
             state.generator = "direct"
             state.meta["answer_guard"] = "direct_structured_output"
+            self._apply_boundary_response_policy(state)
             return state
         if state.meta.get("recipe_source") == "llm_fallback":
             state.final_answer = self._llm_recipe_fallback_answer(state)
             state.generator = self.llm_client.provider if self.llm_client.available else "rule"
             state.meta["answer_guard"] = "llm_fallback_declared"
+            self._apply_boundary_response_policy(state)
             return state
         if state.meta.get("recipe_source") == "llm_fallback_query":
             state.final_answer = self._llm_query_fallback_answer(state)
             state.generator = self.llm_client.provider if self.llm_client.available else "rule"
             state.meta["answer_guard"] = "llm_fallback_declared"
+            self._apply_boundary_response_policy(state)
             return state
         if state.intent == "image_recipe_query" and not self.llm_client.available:
             if not wants_image_recommendations(state.user_input):
@@ -42,11 +54,13 @@ class AnswerAgent:
                 state.retrieved_docs = []
             state.final_answer = self._template_image_answer(state)
             state.generator = "template"
+            self._apply_boundary_response_policy(state)
             self._apply_guard(state)
             return state
         if state.intent in {"structured_recipe_query", "relationship_query", "multi_source_query"} and not self.llm_client.available:
             state.final_answer = state.agent_output
             state.generator = "rule"
+            self._apply_boundary_response_policy(state)
             self._apply_guard(state)
             return state
 
@@ -58,23 +72,104 @@ class AnswerAgent:
         if llm_answer:
             state.final_answer = llm_answer
             state.generator = self.llm_client.provider
+            self._apply_boundary_response_policy(state)
             self._apply_guard(state)
             return state
 
         state.final_answer = self._template_answer(state)
         state.generator = "template"
+        self._apply_boundary_response_policy(state)
         self._apply_guard(state)
         return state
 
     @staticmethod
-    def _apply_guard(state: AgentState) -> None:
+    def _apply_boundary_response_policy(state: AgentState) -> None:
+        boundary = state.meta.get("query_boundary")
+        if not isinstance(boundary, dict) or boundary.get("decision") != "caution":
+            state.meta.setdefault("response_policy", "standard")
+            return
+        if boundary.get("reason_code") != "HEALTH_SENSITIVE":
+            state.meta["response_policy"] = "caution_generic_v1"
+            return
+
+        state.meta["response_policy"] = "health_sensitive_v1"
+        unsafe_patterns = (
+            r"(可以|建议|应该|需要)\s*(立即)?停药",
+            r"(无需|不用)\s*(服药|吃药|就医)",
+            r"(替代|取代)\s*(处方|药物|治疗)",
+            r"(根治|保证治愈|百分之百治愈)",
+        )
+        if any(re.search(pattern, state.final_answer, flags=re.I) for pattern in unsafe_patterns):
+            state.final_answer = (
+                "这个问题涉及疾病、用药或其他健康风险。当前菜谱和营养数据只能提供一般饮食参考，"
+                "不能用于诊断、调整药物或替代治疗。请不要自行停药或改变处方，并咨询医生或注册营养师。"
+            )
+            state.meta["response_policy_action"] = "replaced_high_risk_health_claim"
+            return
+
+        notice = (
+            "\n\n健康提示：以上仅为一般饮食参考，不构成诊断或治疗建议，也不能替代处方或医生意见。"
+            "如涉及疾病控制、用药、孕期、婴幼儿或严重过敏，请结合个人情况咨询医生或注册营养师；"
+            "过敏人群还应核对配料标签和交叉污染风险。"
+        )
+        if "不构成诊断或治疗建议" not in state.final_answer:
+            state.final_answer = state.final_answer.rstrip() + notice
+            state.meta["response_policy_action"] = "appended_health_notice"
+        else:
+            state.meta["response_policy_action"] = "health_notice_present"
+
+    def _apply_guard(self, state: AgentState) -> None:
         if os.getenv("ENABLE_ANSWER_GUARD", "true").strip().lower() in {"0", "false", "no", "off"}:
             state.meta["answer_guard"] = "disabled"
             return
-        status, corrected = verify_answer_grounding(state)
-        state.meta["answer_guard"] = status
-        if corrected:
-            state.final_answer = corrected
+        max_retries = max(0, int(os.getenv("ANSWER_GUARD_MAX_RETRIES", "2")))
+        verification = verify_answer(state)
+        state.meta["answer_guard_initial_status"] = verification.status
+        state.meta["answer_guard_retry_count"] = 0
+
+        if verification.corrected_answer:
+            state.final_answer = verification.corrected_answer
+            self._apply_boundary_response_policy(state)
+            state.meta["answer_guard"] = verification.status
+            return
+
+        while (
+            verification.status == "retryable_unsupported_claims"
+            and state.meta["answer_guard_retry_count"] < max_retries
+            and self.llm_client.available
+        ):
+            state.meta["answer_guard_retry_count"] += 1
+            state.meta["unsupported_claims"] = list(verification.unsupported_claims)
+            repaired = self.llm_client.generate(
+                self._build_repair_prompt(state, verification.unsupported_claims),
+                max_tokens=900,
+            )
+            if not repaired:
+                break
+            state.final_answer = repaired.strip()
+            self._apply_boundary_response_policy(state)
+            verification = verify_answer(state)
+
+        if verification.status == "retryable_unsupported_claims":
+            state.meta["unsupported_claims"] = list(verification.unsupported_claims)
+            state.final_answer = safe_repair_fallback(state, verification.unsupported_claims)
+            self._apply_boundary_response_policy(state)
+            state.meta["answer_guard"] = "safe_fallback_after_retry"
+            return
+        state.meta["unsupported_claims"] = []
+        state.meta["answer_guard"] = verification.status
+
+    @staticmethod
+    def _build_repair_prompt(state: AgentState, unsupported_claims: tuple[str, ...]) -> str:
+        return (
+            "你是 SmartRecipe 回答纠错器。只输出修正后的最终中文回答。\n"
+            "必须删除或改写所有无法由证据直接支持的数字、菜名和事实；不得补充常识或猜测。\n"
+            f"用户问题：{state.user_input}\n"
+            f"待修正回答：{state.final_answer}\n"
+            f"未支持声明：{list(unsupported_claims)}\n"
+            f"允许使用的证据：\n{build_evidence_text(state)}\n"
+            f"边界回答要求：{AnswerAgent._boundary_prompt_instruction(state)}\n"
+        )
 
     def _llm_recipe_fallback_answer(self, state: AgentState) -> str:
         target_name = str(state.meta.get("recipe_detail_target") or state.user_input).strip()
@@ -203,6 +298,7 @@ class AnswerAgent:
     @staticmethod
     def _build_llm_query_fallback_prompt(state: AgentState) -> str:
         preferences = AnswerAgent._fallback_preferences(state)
+        boundary_instruction = AnswerAgent._boundary_prompt_instruction(state)
         return (
             "你是 SmartRecipe 的通用饮食与烹饪建议兜底生成器。"
             "当前本地菜谱库、SQL/RAG 检索没有命中用户条件，所以你不能声称内容来自数据库、RAG、检索结果或本地菜谱库。\n"
@@ -217,6 +313,7 @@ class AnswerAgent:
             f"绝对禁用-不吃：{preferences['dislikes']}\n"
             f"SQL/RAG 观察：{state.agent_output}\n"
             f"对话历史：\n{state.chat_history}\n\n"
+            f"安全边界要求：{boundary_instruction}\n\n"
             "输出格式必须为：\n"
             "建议方向：\n"
             "- ...\n"
@@ -285,6 +382,7 @@ class AnswerAgent:
 
     @staticmethod
     def _build_llm_recipe_fallback_prompt(state: AgentState, target_name: str) -> str:
+        boundary_instruction = AnswerAgent._boundary_prompt_instruction(state)
         return (
             "你是 SmartRecipe 的通用烹饪知识兜底生成器。"
             "当前本地菜谱库没有命中用户要查的目标菜，所以你不能声称内容来自数据库、RAG、检索结果或本地菜谱库。\n"
@@ -293,6 +391,7 @@ class AnswerAgent:
             f"目标菜名：{target_name}\n"
             f"用户原问题：{state.user_input}\n"
             f"对话历史：\n{state.chat_history}\n\n"
+            f"安全边界要求：{boundary_instruction}\n\n"
             "输出格式必须为：\n"
             f"菜名：{target_name}\n"
             "参考食材：\n"
@@ -315,6 +414,7 @@ class AnswerAgent:
 
     def _build_prompt(self, state: AgentState) -> str:
         intent_instruction = self._intent_instruction(state.intent)
+        boundary_instruction = self._boundary_prompt_instruction(state)
         return (
             "You are SmartRecipe, a Chinese recipe assistant. Answer in Chinese.\n"
             "Use only the retrieved recipes as factual basis. Do not invent unavailable recipe details.\n\n"
@@ -325,8 +425,23 @@ class AnswerAgent:
             f"Agent observation: {state.agent_output}\n"
             f"Retrieved recipes:\n{self._format_recipes(state.retrieved_docs)}\n\n"
             f"Intent-specific instruction:\n{intent_instruction}\n\n"
+            f"Safety boundary instruction:\n{boundary_instruction}\n\n"
             "Please provide a helpful, concise, structured final answer."
         )
+
+    @staticmethod
+    def _boundary_prompt_instruction(state: AgentState) -> str:
+        boundary = state.meta.get("query_boundary")
+        if not isinstance(boundary, dict) or boundary.get("decision") != "caution":
+            return "Standard evidence-grounded answer policy."
+        if boundary.get("reason_code") == "HEALTH_SENSITIVE":
+            return (
+                "这是健康敏感问题。只提供由当前证据支持的一般饮食信息，不诊断疾病，不承诺疗效，"
+                "不建议停药、改药或用饮食替代处方和治疗。区分数据库事实与一般建议，明确不确定性。"
+                "涉及疾病、孕期、婴幼儿、严重过敏或用药时，提醒咨询医生或注册营养师；"
+                "涉及过敏时必须提示核对配料标签和交叉污染风险。"
+            )
+        return "Use a conservative answer, state uncertainty, and avoid instructions that could increase risk."
 
     @staticmethod
     def _intent_instruction(intent: str) -> str:

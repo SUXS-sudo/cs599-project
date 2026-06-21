@@ -12,6 +12,7 @@
 - `rerank_agent.py`：候选菜谱重排。
 - `answer_agent.py`：最终回答生成和 Answer Guard。
 - `preference_agent.py`：偏好、过敏、忌口抽取和记忆。
+- `data_engineering_agent.py`：离线 RecipeParsingAgent，编排异构菜谱解析、清洗、去重和图谱构建。
 - `support_agents.py`：轻量支撑 Agent，包含 `SafetyAgent`、`GeneralAgent`、`DataAgent`。
 
 没有独立复杂逻辑的小 Agent 会合并到 `support_agents.py`，避免文件过多。

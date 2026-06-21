@@ -5,6 +5,8 @@ from dataclasses import asdict, dataclass, field
 import os
 from typing import Any
 
+from app.services.context_budget import ContextBudgetManager, SummaryGenerator
+
 
 @dataclass(frozen=True)
 class ChatMessage:
@@ -25,8 +27,14 @@ class UserPreferences:
 class MemoryStore:
     backend = "memory"
 
-    def __init__(self, max_messages: int = 10) -> None:
+    def __init__(
+        self,
+        max_messages: int | None = None,
+        budget_manager: ContextBudgetManager | None = None,
+        summary_generator: SummaryGenerator | None = None,
+    ) -> None:
         self.max_messages = max_messages
+        self.budget_manager = budget_manager or ContextBudgetManager(summary_generator=summary_generator)
         self._sessions: dict[str, deque[ChatMessage]] = defaultdict(deque)
         self._preferences: dict[str, UserPreferences] = defaultdict(UserPreferences)
         self._summaries: dict[str, str] = defaultdict(str)
@@ -43,14 +51,14 @@ class MemoryStore:
         messages = self.get_history(session_id)
         if not messages:
             return "No previous conversation."
-        recent = "\n".join(f"{message.role}: {message.content}" for message in messages[-self.max_messages :])
+        recent = "\n".join(f"{message.role}: {message.content}" for message in messages)
         summary = self.get_summary(session_id) if memory_summary_enabled() else ""
         if summary:
             return f"Long-term summary: {summary}\nRecent conversation:\n{recent}"
         return recent
 
     def get_summary(self, session_id: str) -> str:
-        return self._summaries[session_id]
+        return self._summaries.get(session_id, "")
 
     def get_preferences(self, session_id: str) -> UserPreferences:
         return self._preferences[session_id]
@@ -69,45 +77,45 @@ class MemoryStore:
         return current
 
     def debug_session(self, session_id: str) -> dict[str, Any]:
-        history = [asdict(message) for message in self.get_history(session_id)]
+        messages = self.get_history(session_id)
+        history = [asdict(message) for message in messages]
         preferences = self.get_preferences(session_id).to_dict()
+        summary = self.get_summary(session_id)
         return {
             "session_id": session_id,
             "preferences": preferences,
-            "summary": self.get_summary(session_id),
+            "summary": summary,
             "history": history,
             "turn_count": len([message for message in history if message["role"] == "user"]),
             "backend": self.backend,
+            "context_budget": self.budget_manager.context_stats(summary, messages),
         }
 
     def active_session_count(self) -> int:
         return len(self._sessions)
 
+    def delete_session(self, session_id: str) -> int:
+        deleted = sum(
+            session_id in store
+            for store in (self._sessions, self._preferences, self._summaries)
+        )
+        self._sessions.pop(session_id, None)
+        self._preferences.pop(session_id, None)
+        self._summaries.pop(session_id, None)
+        return deleted
+
     def _refresh_summary(self, session_id: str) -> None:
         if not memory_summary_enabled():
             return
         messages = self.get_history(session_id)
-        if len(messages) <= self.max_messages:
-            return
-        older = messages[: -self.max_messages]
-        self._summaries[session_id] = summarize_messages(older)
-
-
-def summarize_messages(messages: list[ChatMessage], max_chars: int = 360) -> str:
-    facts = []
-    for message in messages:
-        content = message.content.strip().replace("\n", " ")
-        if not content:
-            continue
-        if message.role == "user":
-            facts.append(f"用户说：{content}")
-        elif "推荐" in content or "识别" in content or "菜" in content:
-            facts.append(f"系统答：{content}")
-    summary = "；".join(facts)
-    if len(summary) > max_chars:
-        summary = summary[-max_chars:]
-    return summary
-
+        result = self.budget_manager.compact(
+            self.get_summary(session_id),
+            messages,
+            max_messages=self.max_messages,
+        )
+        if result.compacted_messages or result.after_tokens < result.before_tokens:
+            self._summaries[session_id] = result.summary
+            self._sessions[session_id] = deque(result.recent_messages)
 
 def memory_summary_enabled() -> bool:
     return os.getenv("ENABLE_MEMORY_SUMMARY", "true").strip().lower() not in {"0", "false", "no", "off"}

@@ -4,43 +4,26 @@ from pathlib import Path
 from typing import Any
 
 from app.services.data_pipeline import normalize_recipe, run_recipe_pipeline
+from app.services.query_boundary_guard import QueryBoundaryGuard
 from app.state import AgentState
 
 
-BLOCKED_KEYWORDS = (
-    "毒",
-    "有毒",
-    "下药",
-    "迷药",
-    "致命",
-    "自杀",
-    "伤害",
-    "违法",
-)
-
-HIGH_RISK_HEALTH_KEYWORDS = (
-    "糖尿病",
-    "高血压",
-    "肾病",
-    "肝病",
-    "孕妇",
-    "婴儿",
-    "过敏",
-    "药物",
-    "处方",
-)
-
-
 class SafetyAgent:
-    """Lightweight guardrail before routing."""
+    """Structured boundary guard before routing."""
+
+    def __init__(self, boundary_guard: QueryBoundaryGuard | None = None) -> None:
+        self.boundary_guard = boundary_guard or QueryBoundaryGuard()
 
     def run(self, state: AgentState) -> AgentState:
-        text = state.user_input.strip()
-        if not text:
+        result = self.boundary_guard.evaluate(state.user_input)
+        state.meta["query_boundary"] = result.to_meta()
+        state.meta["normalized_query"] = result.normalized_text
+
+        if result.reason_code == "EMPTY_QUERY":
             state.meta["safety_status"] = "empty"
             return state
 
-        if any(keyword in text for keyword in BLOCKED_KEYWORDS):
+        if result.decision == "block":
             state.intent = "out_of_scope"
             state.target_agent = "general_agent"
             state.agent_output = (
@@ -48,12 +31,12 @@ class SafetyAgent:
                 "如果你需要的是正常饮食、食材处理或营养建议，可以换个安全的描述方式继续问我。"
             )
             state.meta["safety_status"] = "blocked"
-            state.meta["safety_reason"] = "unsafe_keyword"
+            state.meta["safety_reason"] = result.reason_code
             return state
 
-        if any(keyword in text for keyword in HIGH_RISK_HEALTH_KEYWORDS):
+        if result.decision == "caution":
             state.meta["safety_status"] = "caution"
-            state.meta["safety_note"] = "health_sensitive"
+            state.meta["safety_note"] = result.reason_code
             return state
 
         state.meta["safety_status"] = "passed"
