@@ -130,7 +130,7 @@ python scripts/start_server.py --host 127.0.0.1 --port 8010
 
 ✅ Proposal
 ✅ MVP
-⬜ Final
+✅ Final
 
 ## 大作业报告与演示视频
 
